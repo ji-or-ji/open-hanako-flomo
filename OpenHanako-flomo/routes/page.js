@@ -12,7 +12,7 @@
  */
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join } from "node:path";
 import { parseFlomoExport } from "../lib/parse-export.js";
 
 // ---------- 颜色主题 ----------
@@ -50,7 +50,7 @@ export default function registerPluginUiRoutes(app, ctx) {
   <style>${THEME_CSS}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:0;min-height:100vh}#app{max-width:720px;margin:0 auto;padding:24px 16px 64px}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap}header h1{font-size:20px;font-weight:600;display:flex;align-items:center;gap:8px;color:var(--text)}nav{display:flex;gap:4px;background:var(--card);border-radius:8px;padding:3px;box-shadow:var(--shadow)}.tab-btn{background:none;border:none;padding:8px 16px;border-radius:6px;font-size:14px;cursor:pointer;color:var(--text-secondary);transition:all .15s}.tab-btn:hover{color:var(--text)}.tab-btn.active{background:var(--accent);color:#fff;font-weight:500}.tab-content{display:none}.tab-content.active{display:block}.card{background:var(--card);border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}.card h2{font-size:16px;font-weight:600;margin-bottom:12px}.hint{font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.7}label{display:block;margin-bottom:16px}label span{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:var(--text-secondary)}input[type="url"],input[type="text"],input[type="date"],select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--text);outline:none;transition:border-color .15s}input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(48,207,121,.15)}.actions{display:flex;align-items:center;gap:12px}.btn-primary,.btn-secondary{padding:9px 20px;border:none;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;transition:all .15s}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-hover)}.btn-secondary{background:var(--bg);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--border)}.status{font-size:13px;color:var(--text-secondary)}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}.dot-red{background:#e74c3c}.dot-green{background:#27ae60}.dot-yellow{background:#f39c12}.upload-area{border:2px dashed var(--border);border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .15s}.upload-area:hover,.upload-area.dragover{border-color:var(--accent);background:rgba(48,207,121,.04)}.upload-area svg{display:block;margin:0 auto 12px;color:var(--text-secondary)}.upload-area p{font-size:14px;color:var(--text-secondary)}.search-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}.search-bar input[type="text"]{flex:1;min-width:160px}.search-bar input[type="date"]{width:auto;flex-shrink:0}.search-bar select{width:auto;min-width:120px;flex-shrink:0}#search-results,.memo-list{font-size:14px}.memo-item{padding:14px 0;border-bottom:1px solid var(--border)}.memo-item:last-child{border-bottom:none}.memo-time{font-size:12px;color:var(--text-secondary);margin-bottom:4px}.memo-content{line-height:1.7;white-space:pre-wrap;word-break:break-word}.memo-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.memo-tag{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--tag-bg);color:var(--tag-text)}.memo-images{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.memo-images img{max-width:120px;max-height:120px;border-radius:4px;border:1px solid var(--border)}.pagination{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:16px;font-size:13px;color:var(--text-secondary)}.empty-state{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:14px}.error-state{color:var(--danger);font-size:14px}.loading{text-align:center;padding:20px;color:var(--text-secondary)}</style>
 </head>
-<body data-hana-theme="${escapeAttr(theme)}">
+<body data-hana-theme="${escapeAttr(theme)}" data-surface="page">
   <div id="app">
     <header>
       <h1>
@@ -131,6 +131,14 @@ export default function registerPluginUiRoutes(app, ctx) {
     </main>
   </div>
   <script type="module">
+// Plugin UI 就绪信号
+window.parent.postMessage({
+  protocol: 'hana.plugin.ui',
+  version: 1,
+  kind: 'event',
+  type: 'hana.ready'
+}, '*');
+
 const BASE = '${base}';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
