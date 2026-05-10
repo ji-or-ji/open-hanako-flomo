@@ -4,80 +4,43 @@
 
 ## 功能
 
-- **写入笔记** — 通过 Agent 对话或插件界面，将灵感、总结、待办等一键写入 flomo
+- **写入笔记** — 通过 Agent 对话，将灵感、总结、待办等一键写入 flomo
 - **导入与搜索** — 导入 flomo 的导出 HTML 文件，建立本地搜索索引。支持关键词、标签、时间范围筛选
-- **标签管理** — 自动识别导入笔记中的标签，支持按标签树筛选
-
-## 架构
-
-```
-OpenHanako-flomo/
-├── manifest.json        # 插件清单（full-access）
-├── index.js             # 生命周期：加载/缓存 memo 索引
-├── lib/
-│   └── parse-export.js  # flomo 导出 HTML 解析器
-├── tools/
-│   ├── write-memo.js    # 工具：写入笔记（webhook POST）
-│   └── search-memo.js   # 工具：搜索已导入的笔记
-└── routes/
-    └── page.js          # 配置页 + 搜索界面 + API 端点
-```
+- **Agent 驱动** — 所有操作通过对话完成，未来将加入可视化配置页
 
 ## 安装
 
-### 方式一：拖拽安装
-
-1. 下载或克隆本仓库到本地
-2. 打开 Hanako → 设置 → 插件
-3. 将 `OpenHanako-flomo` 文件夹（或打包的 `.zip`）拖入安装区
-
-### 方式二：手动安装
-
-1. 将 `OpenHanako-flomo` 文件夹复制到 Hanako 的插件目录
-2. 在设置 → 插件中启用
-
-> 插件需要 `full-access` 权限，安装后需在设置 → 插件中开启"允许全权插件"开关。
+1. 下载或克隆本仓库
+2. 打开 Hanako → 设置 → 插件，将 `OpenHanako-flomo` 文件夹（或 .zip）拖入安装区
+3. 在设置 → 插件中启用
 
 ## 使用
 
-### 首次配置
+所有操作通过对话中的 Agent 完成：
 
-1. 安装后在侧边栏找到 **Flomo** 页面入口
-2. 在"设置"标签页填入你的 flomo incoming webhook URL
-3. 在"导入"标签页上传 flomo 导出的 `.html` 文件
+| 操作 | 告诉 Agent |
+|------|-----------|
+| 配置 webhook | "帮我配置 flomo webhook URL，地址是 https://flomoapp.com/iwh/xxx/xxx/xxx/" |
+| 写入笔记 | "记到 flomo：今天学到了新东西 #学习" |
+| 导入导出文件 | "帮我导入 flomo 的导出文件，路径是 D:/xxx/xxx.html" |
+| 搜索笔记 | "搜一下 flomo 里关于镜片的笔记" |
 
-### Agent 工具
+## 文件结构
 
-安装后 Agent 自动获得两个新工具：
-
-| 工具名 | 说明 |
-|--------|------|
-| `openhanako-flomo_write_memo` | 写入一条笔记到 flomo（需先配置 webhook） |
-| `openhanako-flomo_search_memo` | 在已导入的笔记中搜索 |
-
-## 写入：Incoming Webhook
-
-通过 flomo PRO 会员提供的 incoming webhook 实现写入：
-
-- 获取方式：flomo 设置 → 会员 → 会员功能 → Incoming Webhook
-- 格式：`https://flomoapp.com/iwh/xxx/xxx/xxx/`
-- 写入支持纯文本，正文中可用 `#标签` 格式
-
-## 读取：导出 HTML 解析
-
-通过 flomo 设置 → 导出数据 下载 `.zip`，解压后得到 `.html` 文件。插件解析 HTML 结构，提取每条 memo 的时间、正文、标签和附件图片路径，建立本地搜索索引。
-
-## 开发
-
-```bash
-# 创建插件目录
-mkdir OpenHanako-flomo && cd OpenHanako-flomo
-
-# 可选：使用官方 scaffolding 工具
-python3 /path/to/openhanako/skills2set/hana-plugin-creator/scripts/create_hana_plugin.py \
-  "OpenHanako-flomo" --path . --kind full
-
-# 参考本仓库的目录结构开发即可
+```
+OpenHanako-flomo/
+├── manifest.json          # 插件清单
+├── index.js               # 生命周期
+├── lib/
+│   └── parse-export.js    # flomo 导出 HTML 解析器
+├── tools/
+│   ├── set-config.js      # 配置 webhook URL
+│   ├── write-memo.js      # 写入笔记
+│   ├── search-memo.js     # 搜索笔记
+│   └── import-memos.js    # 导入导出文件
+└── skills/
+    └── openhanako-flomo/
+        └── SKILL.md       # 知识注入
 ```
 
 ## 许可

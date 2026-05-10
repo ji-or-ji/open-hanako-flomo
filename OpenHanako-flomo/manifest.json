@@ -2,19 +2,20 @@
   "manifestVersion": 1,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "浮墨笔记（flomo）接入插件 —— 写入、搜索、管理笔记",
   "minAppVersion": "0.82.0",
-  "trust": "full-access",
   "activationEvents": ["onStartup"],
-  "ui": {
-    "hostCapabilities": ["external.open"]
-  },
   "contributes": {
-    "page": {
-      "title": "Flomo",
-      "route": "/page",
-      "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M12 4v16M4 12h16\"/></svg>"
+    "configuration": {
+      "title": "Flomo 配置",
+      "properties": {
+        "webhookUrl": {
+          "type": "string",
+          "default": "",
+          "description": "flomo incoming webhook URL，从 flomo 设置 → 会员 → Incoming Webhook 获取"
+        }
+      }
     }
   },
   "depends": {

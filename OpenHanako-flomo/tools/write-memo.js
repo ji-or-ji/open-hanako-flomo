@@ -3,8 +3,12 @@
  * 通过 flomo incoming webhook 写入一条笔记
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 export const name = "write_memo";
-export const description = "写入一条笔记到浮墨笔记（flomo）。支持标签，标签用 # 号标注。";
+export const description = "写入一条笔记到浮墨笔记（flomo）。支持标签，标签用 # 号标注。"
+  + "使用前需先通过 set_config 工具配置 webhookUrl。";
 export const parameters = {
   type: "object",
   properties: {
@@ -23,10 +27,22 @@ export async function execute(input, toolCtx) {
     return "内容不能为空。";
   }
 
-  // 从插件配置读取 webhook URL
-  const webhookUrl = toolCtx.config?.webhookUrl;
+  // 从插件配置读取 webhook URL（优先 toolCtx.config，其次读取本地文件）
+  let webhookUrl = toolCtx.config?.webhookUrl;
+
   if (!webhookUrl) {
-    return "尚未配置 flomo webhook URL。请在 Flomo 插件设置页中配置。";
+    // 尝试从本地配置文件中读取
+    const configPath = join(toolCtx.dataDir, "config.json");
+    if (existsSync(configPath)) {
+      try {
+        const config = JSON.parse(readFileSync(configPath, "utf-8"));
+        webhookUrl = config.webhookUrl;
+      } catch { /* 忽略 */ }
+    }
+  }
+
+  if (!webhookUrl) {
+    return "尚未配置 flomo webhook URL。请告诉 Agent：帮我配置 flomo webhook URL，然后把你的 webhook 地址发过来。";
   }
 
   try {
