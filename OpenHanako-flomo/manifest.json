@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "浮墨笔记（flomo）接入插件 —— 写入、搜索、管理笔记",
   "minAppVersion": "0.82.0",
   "activationEvents": ["onStartup"],

@@ -23,6 +23,6 @@ description: "浮墨笔记（flomo）插件：写入、搜索、管理 flomo 笔
 **用法：** 用户说「搜一下 flomo 里关于 xxx 的笔记」
 
 ## openhanako-flomo_import_memos
-导入 flomo 的导出 HTML 文件。需要用户提供文件路径。
+导入 flomo 的导出数据。支持直接传入 .zip 文件路径、解压后的文件夹路径、或 .html 文件路径，自动解析。
 
-**用法：** 用户说「帮我导入 flomo 的导出文件」
+**用法：** 用户把 flomo 导出的 .zip 文件拖入聊天后，用 sourcePath 参数传入路径（支持 .zip 文件本身）。或用户说「帮我导入 flomo 的导出文件，路径是 xxx」
