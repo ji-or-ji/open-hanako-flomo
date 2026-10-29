@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 2,
+  "id": "openhanako-flomo",
+  "name": "OpenHanako-flomo",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "icon": "assets/icon.png",
+  "description": "浮墨笔记（flomo）接入：写入、搜索、导入笔记。",
+  "minAppVersion": "1.3.6-beta",
+  "capabilities": [
+    "app/tools.expose-to-model",
+    "app/resources.read"
+  ],
+  "network": {
+    "allowedHosts": ["flomoapp.com"],
+    "methods": ["POST"],
+    "defaultTimeoutMs": 20000,
+    "maxResponseBytes": 2097152
+  },
+  "contributes": {
+    "settings": {
+      "title": "Flomo",
+      "schema": {
+        "properties": {
+          "webhookUrl": {
+            "type": "string",
+            "title": "Incoming Webhook URL",
+            "description": "从 flomo 设置 → 会员 → Incoming Webhook 获取，格式 https://flomoapp.com/iwh/xxx/xxx/xxx/",
+            "sensitive": true,
+            "default": ""
+          }
+        }
+      }
+    }
+  }
+}
