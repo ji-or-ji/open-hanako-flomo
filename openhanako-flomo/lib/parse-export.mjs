@@ -31,24 +31,38 @@ export function parseFlomoExport(html) {
 }
 
 /**
- * 用正则提取所有 <div class="memo">...</div> 块
+ * 按标签深度切出所有 <div class="memo">…</div> 块。
+ *
+ * 不用正则懒匹配：memo 里套着 <div class="content"> 这些子 div，懒匹配会在第一个
+ * </div> 就断开，块一多就会丢数据（实测两份笔记只解析出一份）。改成从开标签位置
+ * 往下数 div 深度，回到 0 才结束。
  */
 function extractMemoBlocks(html) {
   const blocks = [];
-  const regex = /<div\s+class="memo">(.*?)<\/div>\s*\n?\s*(?=<div\s+class="memo">|$)/gs;
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    blocks.push(match[1]);
-  }
-
-  // fallback: 如果上面的 regex 没匹配到，用简化方式
-  if (blocks.length === 0) {
-    const simpleRegex = /<div\s+class="memo">(.*?)<\/div>/gs;
-    while ((match = simpleRegex.exec(html)) !== null) {
-      blocks.push(match[1]);
+  const openRe = /<div\s+class="memo">/g;
+  let m;
+  while ((m = openRe.exec(html)) !== null) {
+    const start = m.index + m[0].length;
+    const tagRe = /<\/div\s*>|<div\b/g;
+    tagRe.lastIndex = start;
+    let depth = 1;
+    let end = -1;
+    let t;
+    while ((t = tagRe.exec(html)) !== null) {
+      if (t[0].startsWith("</")) {
+        depth -= 1;
+        if (depth === 0) {
+          end = t.index;
+          break;
+        }
+      } else {
+        depth += 1;
+      }
     }
+    if (end < 0) end = html.length;
+    blocks.push(html.slice(start, end));
+    openRe.lastIndex = end;
   }
-
   return blocks;
 }
 

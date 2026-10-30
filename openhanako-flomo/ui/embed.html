@@ -63,7 +63,7 @@
 <div id="dock">
   <span id="note"></span>
   <button id="reload" type="button">刷新</button>
-  <button id="update" type="button">一键更新</button>
+  <button id="sync" type="button">同步笔记</button>
   <button id="open" type="button">外部打开</button>
 </div>
 
@@ -78,14 +78,14 @@
   const BASE = "http://127.0.0.1:47811";
   const frame = document.getElementById("frame");
   const note = document.getElementById("note");
-  const updateBtn = document.getElementById("update");
+  const syncBtn = document.getElementById("sync");
   const reloadBtn = document.getElementById("reload");
   const openBtn = document.getElementById("open");
   const dock = document.getElementById("dock");
   const fallback = document.getElementById("fallback");
 
   let loaded = false;
-  let pending = null;
+  let pollTimer = null;
 
   function say(text, kind = "") {
     note.textContent = text || "";
@@ -118,43 +118,38 @@
     return res.json();
   }
 
-  updateBtn.addEventListener("click", async () => {
-    if (pending) {
-      // 第二次点击 = 确认更新
-      updateBtn.disabled = true;
-      say("正在下载…");
-      try {
-        const r = await api("/__update/apply", { method: "POST" });
-        if (r.upToDate) say(`已是最新 ${r.current}`, "ok");
-        else if (r.ok) say(`已更新到 ${r.to}，重启 Hana 生效`, "ok");
-        else say(`更新失败：${r.error || "未知原因"}`, "bad");
-      } catch (err) {
-        say(`更新失败：${err?.message || err}`, "bad");
-      } finally {
-        pending = null;
-        updateBtn.textContent = "一键更新";
-        updateBtn.disabled = false;
-      }
-      return;
-    }
-    updateBtn.disabled = true;
-    say("检查更新…");
+  // 同步笔记：盯着下载目录等 flomo 导出包落盘，落盘就解压入库。
+  async function pollSync() {
     try {
-      const r = await api("/__update/check");
-      if (!r.ok) throw new Error(r.error || "检查失败");
-      if (!r.newer) {
-        say(`已是最新 ${r.current}`, "ok");
-      } else {
-        pending = r;
-        updateBtn.textContent = `更新到 ${r.latest}`;
-        say(`有新版 ${r.current} → ${r.latest}，再点一下确认`, "warn");
+      const st = await api("/__sync/status");
+      if (st.state === "watching") {
+        say("等你点导出…（设置 → 导入导出 → 导出全部笔记）", "warn");
+        pollTimer = setTimeout(pollSync, 1500);
+        return;
       }
+      syncBtn.disabled = false;
+      if (st.state === "done") say(st.message, "ok");
+      else if (st.state === "timeout") say(st.message, "warn");
+      else if (st.state === "error") say(st.message || "同步出错", "bad");
+      setTimeout(() => say(""), 8000);
     } catch (err) {
-      // 运行时没起来（或端口被别的程序占着）
-      say(`连不上更新服务：${err?.message || err}`, "bad");
-    } finally {
-      updateBtn.disabled = false;
-      if (!pending) setTimeout(() => say(""), 4000);
+      syncBtn.disabled = false;
+      say(`连不上同步服务：${err?.message || err}`, "bad");
+    }
+  }
+
+  syncBtn.addEventListener("click", async () => {
+    syncBtn.disabled = true;
+    say("准备找导出文件…");
+    try {
+      await api("/__sync/start", { method: "POST" });
+      // 先把操作路径摊开告诉他，别让人猜
+      say("现在在页面里点：左上角昵称 → 设置 → 导入导出 → 导出", "warn");
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(pollSync, 1500);
+    } catch (err) {
+      syncBtn.disabled = false;
+      say(`连不上同步服务：${err?.message || err}`, "bad");
     }
   });
 
