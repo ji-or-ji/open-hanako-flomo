@@ -91,3 +91,14 @@ Apache License 2.0
 - **协议版本退档**：握手从 2025-06-18 起，失败依次退 2025-03-26、2024-11-05；鉴权错不退版本
 - **成败判定**：认 `isError`，也认结构化文本里的错误
 - **没有 MCP 就不给「改」**：与其摆一个“改了但没同步”的按钮让人分不清，不如干脆不出现；「改」只在能推回线上时才现身
+
+## 引用是怎么投进对话的（宿主契约，踩过的坑）
+
+`sdk.sessions.send` 对 v2 App 默认落在 App 自己的分区里，写用户会话会报
+`session "..." does not belong to app "<id>"`。契约原文（宿主 bus 注册表里 `session:send` 的描述）：
+
+> v2 Apps default to their own partition; `scope: all` requires `app/sessions.manage`.
+
+所以必须显式传 `scope: "all"`，并声明 `app/sessions.manage`；会话正在生成时用
+`deliverAs: "followUp"` 排队，否则会抛 `session_busy`。`app/session.start-turn`
+是 `startTurn` 那条分支要的，一并声明。
