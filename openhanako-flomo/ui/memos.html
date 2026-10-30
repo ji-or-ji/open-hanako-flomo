@@ -132,6 +132,31 @@
 
   .empty { padding: 28px 18px; text-align: center; opacity: .6; line-height: 1.9; font-size: var(--fs-caption, 12px); }
 
+  /* ---- 就地编辑 ---- */
+  .editor { display: flex; flex-direction: column; gap: 6px; }
+  .editor textarea {
+    width: 100%; resize: vertical;
+    padding: 7px 9px;
+    border: 1px solid var(--accent, var(--f-accent));
+    border-radius: var(--radius-input, 8px);
+    background: var(--overlay-subtle, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-body, 13px); line-height: 1.62;
+    outline: none;
+  }
+  .erow { display: flex; gap: 6px; justify-content: flex-end; }
+  .erow button {
+    height: 24px; padding: 0 11px; border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    background: var(--overlay-subtle, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-hint, 11px); cursor: pointer;
+  }
+  .erow button:first-child {
+    background: var(--accent, var(--f-accent));
+    color: var(--on-accent, var(--f-accent-ink));
+    border-color: transparent;
+  }
+  .erow button:disabled { opacity: .5; cursor: default; }
+
   /* ---- 底部写一条 ---- */
   .composer {
     flex: none; border-top: 1px solid var(--input-card-border-color, var(--f-line));
@@ -303,6 +328,7 @@
   let memos = [];
   let tagFilter = "";
   let noteTimer = null;
+  let mcp = { configured: false };
 
   function say(text, kind = "") {
     noteEl.textContent = text;
@@ -389,7 +415,10 @@
 
   function renderList() {
     const shown = memos.filter(matches);
-    countEl.textContent = memos.length ? `${shown.length}/${memos.length}` : "";
+    countEl.textContent = memos.length ? `${shown.length}/${memos.length}${mcp.configured ? " · MCP" : ""}` : "";
+    countEl.title = mcp.configured
+      ? `MCP ${mcp.error ? `异常：${mcp.error}` : "已连接"}${mcp.picked ? `\n搜索 ${mcp.picked.search || "?"} · 新建 ${mcp.picked.create || "?"} · 修改 ${mcp.picked.update || "?"}` : ""}`
+      : "没配 MCP Token，只能记本地笔记";
     listEl.textContent = "";
     if (!memos.length) {
       const d = document.createElement("div");
@@ -473,8 +502,105 @@
     });
 
     acts.append(quote, copy);
+
+    // 配了 MCP 才能改线上笔记
+    if (mcp.configured) {
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.textContent = "改";
+      edit.title = "直接改 flomo 线上那条（MCP）";
+      edit.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openEditor(box, m);
+      });
+      acts.append(edit);
+      text.title = "双击可直接修改";
+      text.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        openEditor(box, m);
+      });
+    }
+
     box.append(acts);
     return box;
+  }
+
+  /** 就地编辑：保存走 MCP 改线上，成功后同步本地那条。 */
+  function openEditor(box, m) {
+    if (box.querySelector(".editor")) return;
+    const original = m.content || "";
+    const wrap = document.createElement("div");
+    wrap.className = "editor";
+    const ta = document.createElement("textarea");
+    ta.value = original;
+    ta.rows = Math.min(12, Math.max(4, Math.ceil(original.length / 40)));
+    const row = document.createElement("div");
+    row.className = "erow";
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = "保存";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "取消";
+    row.append(save, cancel);
+    wrap.append(ta, row);
+    const textNode = box.querySelector(".text");
+    textNode.style.display = "none";
+    box.append(wrap);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    const close = () => {
+      wrap.remove();
+      textNode.style.display = "";
+    };
+    cancel.addEventListener("click", close);
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") void doSave();
+    });
+
+    async function doSave() {
+      const next = ta.value.trim();
+      if (!next) {
+        say("内容不能为空", "bad");
+        return;
+      }
+      if (next === original) {
+        close();
+        return;
+      }
+      save.disabled = true;
+      cancel.disabled = true;
+      say("正在改线上…");
+      try {
+        const r = await api("/__mcp/op", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ op: "update", payload: { text: next, hint: original.slice(0, 24) } }),
+        });
+        if (!r.ok) {
+          say(`改不了：${r.error || "未知原因"}`, "bad");
+          save.disabled = false;
+          cancel.disabled = false;
+          return;
+        }
+        const p = await api("/__memo/patch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: m.id, text: next }),
+        });
+        if (!p.ok) say("线上改了，本地没跟上", "bad");
+        else say("已保存", "ok");
+        close();
+        await load();
+      } catch (err) {
+        say(`改不了：${err?.message || err}`, "bad");
+        save.disabled = false;
+        cancel.disabled = false;
+      }
+    }
+    save.addEventListener("click", () => void doSave());
   }
 
   async function activeSession() {
@@ -559,6 +685,14 @@
 
   listEl.addEventListener("scroll", hideSelBtn, { passive: true });
 
+  async function loadMCP() {
+    try {
+      mcp = await api("/__mcp/status");
+    } catch {
+      mcp = { configured: false };
+    }
+  }
+
   async function load() {
     try {
       const r = await api("/__memos");
@@ -582,16 +716,29 @@
     if (!text) return;
     sendBtn.disabled = true;
     try {
-      const r = await api("/__memo/new", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (r.ok) {
-        draftEl.value = "";
-        autosize();
-        say("已发送到 flomo", "ok");
-      } else say(r.error || "发送失败", "bad");
+      if (mcp.configured) {
+        const r = await api("/__mcp/op", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ op: "create", payload: { text } }),
+        });
+        if (r.ok) {
+          draftEl.value = "";
+          autosize();
+          say("已写入 flomo（本地等下次同步）", "ok");
+        } else say(r.error || "发送失败", "bad");
+      } else {
+        const r = await api("/__memo/new", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (r.ok) {
+          draftEl.value = "";
+          autosize();
+          say("已发送到 flomo", "ok");
+        } else say(r.error || "发送失败", "bad");
+      }
     } catch (err) {
       say(`发送失败：${err?.message || err}`, "bad");
     } finally {
@@ -681,6 +828,7 @@
     /* 旧宿主不认识就算了 */
   }
   await hana.ready?.();
+  await loadMCP();
   await load();
 </script>
 </body>

@@ -43,6 +43,9 @@ const memosPath = () => join(DATA_DIR, "memos.json");
 const queueDir = () => join(DATA_DIR, "quote-queue");
 const webhookPath = () => join(DATA_DIR, "webhook.txt");
 const numbersPath = () => join(DATA_DIR, "numbers.json");
+const mcpQueueDir = () => join(DATA_DIR, "mcp-queue");
+const mcpResultDir = () => join(DATA_DIR, "mcp-results");
+const mcpStatusPath = () => join(DATA_DIR, "mcp-status.json");
 
 /** 引用时只报编号，不报整篇；超过这个字数就不附正文了。 */
 const QUOTE_TEXT_LIMIT = 800;
@@ -367,6 +370,71 @@ const server = createServer(async (req, res) => {
       rmSync(tmp, { force: true });
       if (code === 0) send(res, 200, { ok: true, chars: text.length });
       else send(res, 500, { ok: false, error: `剪贴板写入失败（exit ${code}）` });
+      return;
+    }
+
+    if (url.pathname === "/__memo/patch" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const id = String(body.id || "");
+      const text = String(body.text || "").trim();
+      if (!id || !text) {
+        send(res, 400, { ok: false, error: "缺 id 或正文" });
+        return;
+      }
+      const memos = readMemos();
+      const idx = memos.findIndex((m) => m.id === id);
+      if (idx < 0) {
+        send(res, 404, { ok: false, error: "本地没有这条" });
+        return;
+      }
+      memos[idx] = { ...memos[idx], content: text };
+      writeMemos(memos);
+      send(res, 200, { ok: true });
+      return;
+    }
+
+    // ---- MCP：卡片把请求放进队列，App 后端接走并回结果 ----
+    if (url.pathname === "/__mcp/status") {
+      let status = { configured: false };
+      try {
+        status = JSON.parse(readFileSync(mcpStatusPath(), "utf8"));
+      } catch {
+        status = { configured: false, note: "状态文件还没生成" };
+      }
+      send(res, 200, { ok: true, ...status });
+      return;
+    }
+    if (url.pathname === "/__mcp/op" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const op = String(body.op || "");
+      if (!["probe", "search", "create", "update"].includes(op)) {
+        send(res, 400, { ok: false, error: "op 只能是 probe/search/create/update" });
+        return;
+      }
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      mkdirSync(mcpQueueDir(), { recursive: true });
+      writeFileSync(
+        join(mcpQueueDir(), `${id}.json`),
+        JSON.stringify({ id, op, payload: body.payload || {}, at: Date.now() }),
+        "utf8",
+      );
+      const deadline = Date.now() + 25000;
+      const resultPath = join(mcpResultDir(), `${id}.json`);
+      while (Date.now() < deadline) {
+        if (existsSync(resultPath)) {
+          let result = { ok: false, error: "结果读不出来" };
+          try {
+            result = JSON.parse(readFileSync(resultPath, "utf8"));
+          } catch {
+            /* 保持默认 */
+          }
+          rmSync(resultPath, { force: true });
+          send(res, 200, result);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 320));
+      }
+      send(res, 504, { ok: false, error: "MCP 没在 25 秒内回结果（App 后端可能没在跑）" });
       return;
     }
 

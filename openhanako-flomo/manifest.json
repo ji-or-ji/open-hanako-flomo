@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "2.1.7",
+  "version": "2.2.0",
   "entry": "index.js",
   "icon": "assets/icon.png",
   "description": "浮墨笔记（flomo）：本地笔记摆在一张小卡里，按月份分段、可搜可筛；写一条走 Incoming Webhook，划词可引用到当前会话（只带编号与摘录）。",
@@ -40,6 +40,37 @@
             "title": "Incoming Webhook URL",
             "description": "从 flomo 设置 → 会员 → Incoming Webhook 获取，格式 https://flomoapp.com/iwh/xxx/xxx/xxx/",
             "sensitive": true,
+            "default": ""
+          },
+          "mcpToken": {
+            "type": "string",
+            "title": "MCP Token",
+            "description": "网页版 → 设置 → MCP / API → Token 授权模式。填了之后可以搜索、新建、直接改线上笔记",
+            "sensitive": true,
+            "default": ""
+          },
+          "mcpUrl": {
+            "type": "string",
+            "title": "MCP 端点",
+            "description": "默认 https://flomoapp.com/mcp，一般不用改",
+            "default": "https://flomoapp.com/mcp"
+          },
+          "mcpToolSearch": {
+            "type": "string",
+            "title": "搜索工具名（可选）",
+            "description": "自动探测猜不对时手动指定，比如 search_notes",
+            "default": ""
+          },
+          "mcpToolCreate": {
+            "type": "string",
+            "title": "新建工具名（可选）",
+            "description": "自动探测猜不对时手动指定",
+            "default": ""
+          },
+          "mcpToolUpdate": {
+            "type": "string",
+            "title": "修改工具名（可选）",
+            "description": "自动探测猜不对时手动指定",
             "default": ""
           }
         }

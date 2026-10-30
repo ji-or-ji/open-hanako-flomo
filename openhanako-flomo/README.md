@@ -66,3 +66,21 @@ OpenHanako-flomo/
 ## 许可
 
 Apache License 2.0
+
+## MCP（可选，需 flomo MAX）
+
+设置 → 扩展 → OpenHanako-flomo 填 `MCP Token`（网页版 → 设置 → MCP / API → Token 授权模式）。填了之后：
+
+- 卡片底部「发送」改走 MCP，标题旁的计数会多一个 `· MCP`
+- 每条笔记多一个「改」，双击正文也能就地改；保存走 MCP 改线上，成功后再同步本地那条
+- Agent 可以直接用 `flomo_mcp` 工具：`probe`（列出 MCP 实际提供的工具）、`search`、`create`、`update`
+
+### 这部分是照文档写的，没跑通过
+
+没有 MAX 会员就拿不到 Token，所以下面这些只能在拿到权限后才知道对不对：
+
+- **已验证**：`https://flomoapp.com/mcp` 存在，要求 `Authorization: Bearer <Token>`（拿假 token 请求，服务端回 401，说明请求形状没错）
+- **未验证**：工具名与参数名。所以代码里不硬编码：先 `tools/list`，再按名字猜哪个是搜索/新建/修改；猜不对可以在设置里手填 `mcpToolSearch` / `mcpToolCreate` / `mcpToolUpdate`
+- `probe` 会把工具清单原样列出来，拿到 Token 后第一件事就跑它
+
+还有一个结构性的坑写在明处：本地索引里的笔记 id 是我们解析导出时自己生成的（`时间_短哈希`），跟 flomo 线上的 id 不是一回事。所以「改」的时候要先用原文前 24 字搜一次、从结果里猜线上 id；猜不到就报错，不会假装改成功。
