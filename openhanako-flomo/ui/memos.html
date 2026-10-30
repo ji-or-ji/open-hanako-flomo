@@ -182,17 +182,24 @@
   }
   .send:hover { opacity: .88; }
   .send:disabled { opacity: .45; cursor: default; }
+  .composer.off textarea { opacity: .6; }
+  .whint {
+    flex: none; padding: 0 12px 8px;
+    font-size: var(--fs-hint, 11px); line-height: 1.5;
+    color: var(--text-muted, inherit); opacity: .7;
+  }
+  .whint b { font-weight: 600; }
 
   /* ---- 提示条 ---- */
   #note {
-    position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
-    max-width: 92%; padding: 6px 12px; border-radius: var(--radius-md, 8px);
+    position: fixed; left: 50%; bottom: 62px; transform: translateX(-50%);
+    max-width: calc(100% - 24px); padding: 6px 12px; border-radius: var(--radius-md, 8px);
     background: var(--bg-card, var(--f-surface));
     border: 1px solid var(--border, var(--f-line));
     box-shadow: var(--shadow-md, 0 4px 12px var(--f-shadow));
-    font-size: var(--fs-hint, 11.5px);
+    font-size: var(--fs-hint, 11.5px); line-height: 1.5;
     opacity: 0; pointer-events: none; transition: opacity var(--duration-fast, .15s) ease;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   #note.show { opacity: 1; }
   #note.ok { color: var(--green, #4e9e73); }
@@ -247,10 +254,11 @@
 
 <div class="list" id="list"></div>
 
-<div class="composer">
-  <textarea id="draft" rows="1" placeholder="记一条…（走 Incoming Webhook）"></textarea>
+<div class="composer" id="composer">
+  <textarea id="draft" rows="1" placeholder="记一条…"></textarea>
   <button class="send" id="send" type="button">发送</button>
 </div>
+<div class="whint" id="whint" hidden></div>
 
 <div id="note"></div>
 <div id="drop">松手就导入</div>
@@ -323,12 +331,15 @@
   const draftEl = el("draft");
   const sendBtn = el("send");
   const noteEl = el("note");
+  const composerEl = el("composer");
+  const whintEl = el("whint");
   const selBtn = el("selBar");
 
   let memos = [];
   let tagFilter = "";
   let noteTimer = null;
   let mcp = { configured: false };
+  let hasWebhook = false;
 
   function say(text, kind = "", sticky = false) {
     noteEl.textContent = text;
@@ -704,6 +715,29 @@
       mcp = await api("/__mcp/status");
     } catch {
       mcp = { configured: false };
+    }
+    try {
+      const h = await api("/__health");
+      hasWebhook = Boolean(h?.webhook);
+    } catch {
+      hasWebhook = false;
+    }
+    renderComposerState();
+  }
+
+  /** 一个通道都没有时，不摆一个点了就报错的按钮。 */
+  function renderComposerState() {
+    const canWrite = mcp.configured || hasWebhook;
+    composerEl.classList.toggle("off", !canWrite);
+    draftEl.disabled = !canWrite;
+    sendBtn.disabled = !canWrite;
+    if (canWrite) {
+      whintEl.hidden = true;
+      draftEl.placeholder = mcp.configured ? "记一条…（走 MCP）" : "记一条…（走 Incoming Webhook）";
+    } else {
+      whintEl.hidden = false;
+      whintEl.textContent = "还写不了：需要 Incoming Webhook 或 MCP Token（设置 → 扩展 → OpenHanako-flomo）。";
+      draftEl.placeholder = "不可写";
     }
   }
 
