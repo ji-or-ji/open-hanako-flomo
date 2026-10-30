@@ -113,16 +113,25 @@
   }
   #drop.show { display: grid; }
 
-  /* 划词后浮出的小按钮 */
-  #selBtn {
-    position: fixed; z-index: 30; display: none;
-    height: 24px; padding: 0 9px; border-radius: 7px;
-    border: 1px solid rgba(127,214,192,.45);
-    background: rgba(20,26,33,.96); color: #7FD6C0;
-    font: inherit; font-size: 11px; cursor: pointer;
-    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  /* 划词工具条：对齐 HanaAgent 原生那一条 */
+  #selBar {
+    position: fixed; z-index: 30; display: none; align-items: center; gap: 2px;
+    padding: 4px; border-radius: 10px;
+    background: rgba(58, 69, 82, .97);
+    box-shadow: 0 6px 18px rgba(0,0,0,.42);
+    backdrop-filter: blur(8px);
   }
-  #selBtn.show { display: block; }
+  #selBar.show { display: flex; }
+  #selBar button {
+    display: flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 10px; border: 0; border-radius: 7px;
+    background: transparent; color: #d6dee8;
+    font: inherit; font-size: 12px; cursor: pointer;
+    transition: background .14s ease;
+    white-space: nowrap;
+  }
+  #selBar button:hover { background: rgba(255,255,255,.1); }
+  #selBar svg { width: 13px; height: 13px; opacity: .8; flex: none; }
   .memo .time .no { color: #7FD6C0; opacity: .8; margin-right: 5px; font-variant-numeric: tabular-nums; }
 </style>
 </head>
@@ -149,7 +158,22 @@
 
 <div id="note"></div>
 <div id="drop">松手就导入</div>
-<button id="selBtn" type="button">引用选中</button>
+<div id="selBar">
+  <button id="selQuote" type="button">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+      <path d="M6 4.5c-1.6.6-2.6 1.9-2.6 3.6M6 4.5v3.2H3.2c0 2 .9 3.1 2.8 3.6" />
+      <path d="M12.4 4.5c-1.6.6-2.6 1.9-2.6 3.6M12.4 4.5v3.2H9.6c0 2 .9 3.1 2.8 3.6" />
+    </svg>
+    引用到对话
+  </button>
+  <button id="selCopy" type="button">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+      <rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.6" />
+      <path d="M10.5 3.5H4.2A1.2 1.2 0 0 0 3 4.7v6.3" />
+    </svg>
+    复制
+  </button>
+</div>
 <input id="file" type="file" accept=".zip,.html,.htm" hidden>
 
 <script type="module">
@@ -164,7 +188,7 @@
   const draftEl = el("draft");
   const sendBtn = el("send");
   const noteEl = el("note");
-  const selBtn = el("selBtn");
+  const selBtn = el("selBar");
 
   let memos = [];
   let tagFilter = "";
@@ -367,18 +391,31 @@
       const rect = sel.getRangeAt(0).getBoundingClientRect();
       selBtn.dataset.no = host.dataset.no || "";
       selBtn.dataset.text = text;
-      selBtn.style.left = `${Math.min(window.innerWidth - 90, Math.max(6, rect.left))}px`;
-      selBtn.style.top = `${Math.max(6, rect.top - 30)}px`;
+      selBtn.style.left = `${Math.min(window.innerWidth - 190, Math.max(6, rect.left))}px`;
+      selBtn.style.top = `${Math.max(6, rect.top - 38)}px`;
       selBtn.classList.add("show");
     }, 0);
   });
 
-  selBtn.addEventListener("click", async () => {
+  selBtn.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
     const no = Number(selBtn.dataset.no) || 0;
     const text = selBtn.dataset.text || "";
+    if (btn.id === "selCopy") {
+      try {
+        await navigator.clipboard.writeText(text);
+        say("已复制选中段落", "ok");
+      } catch {
+        say("复制失败", "bad");
+      }
+      hideSelBtn();
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
     hideSelBtn();
     window.getSelection()?.removeAllRanges();
-    await quoteIntoSession({ no, kind: "selection", text }, selBtn);
+    await quoteIntoSession({ no, kind: "selection", text }, null);
   });
 
   listEl.addEventListener("scroll", hideSelBtn, { passive: true });

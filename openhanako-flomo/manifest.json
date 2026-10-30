@@ -2,10 +2,10 @@
   "manifestVersion": 2,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "entry": "index.js",
   "icon": "assets/icon.png",
-  "description": "浮墨笔记（flomo）接入：网页版直接嵌在卡片里，写入、搜索、导入笔记，卡片上点一下就能更新自己。",
+  "description": "浮墨笔记（flomo）：本地笔记摆在一张小卡里，按月份分段、可搜可筛；写一条走 Incoming Webhook，划词可引用到当前会话（只带编号与摘录）。",
   "minAppVersion": "1.3.6-beta",
   "capabilities": [
     "app/tools.expose-to-model",
