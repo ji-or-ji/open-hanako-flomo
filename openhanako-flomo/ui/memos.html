@@ -604,20 +604,30 @@
   }
 
   async function activeSession() {
+    let raw = null;
     try {
-      const s = await hana.sessions.getActive();
-      const sessionId = s?.sessionId || s?.id || "";
-      const sessionPath = s?.sessionPath || s?.path || "";
-      return { sessionId, sessionPath };
-    } catch {
-      return { sessionId: "", sessionPath: "" };
+      raw = await hana.sessions.getActive();
+    } catch (err) {
+      raw = { error: String(err?.message || err) };
     }
+    // 把宿主原样返回的形状存一份，形状不对时不用猜
+    void api("/__debug", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ at: Date.now(), raw }) }).catch(() => {});
+    const pick = (v) => (typeof v === "string" && v.trim() ? v.trim() : "");
+    const nested = [raw, raw?.session, raw?.active, raw?.data].filter(Boolean);
+    let sessionId = "";
+    let sessionPath = "";
+    for (const o of nested) {
+      if (typeof o !== "object") continue;
+      sessionId = sessionId || pick(o.sessionId) || pick(o.id) || pick(o.session?.sessionId);
+      sessionPath = sessionPath || pick(o.sessionPath) || pick(o.path) || pick(o.session?.sessionPath);
+    }
+    return { sessionId, sessionPath, raw };
   }
 
   async function quoteIntoSession(payload, btn) {
     const target = await activeSession();
     if (!target.sessionId && !target.sessionPath) {
-      say("没拿到当前会话，先在主窗口打开一个对话", "bad");
+      say("没拿到当前会话 id（已存诊断，稍后修）", "bad");
       return;
     }
     if (btn) btn.disabled = true;

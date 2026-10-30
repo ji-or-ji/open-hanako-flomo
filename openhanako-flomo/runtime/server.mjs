@@ -438,6 +438,14 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // ---- 诊断：把卡片里拿到的原始数据落盘，便于对宿主返回形状 ----
+    if (url.pathname === "/__debug" && req.method === "POST") {
+      const raw = (await readBody(req)).toString("utf8");
+      writeFileSync(join(DATA_DIR, "debug-card.json"), raw.slice(0, 20000), "utf8");
+      send(res, 200, { ok: true, bytes: raw.length });
+      return;
+    }
+
     // ---- 打开系统浏览器（卡片里的 window.open 会被沙箱挡） ----
     if (url.pathname === "/__open" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
