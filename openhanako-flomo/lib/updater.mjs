@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync,
 import { dirname, join, resolve } from "node:path";
 import { unzip } from "./unzip.mjs";
 
-const RELEASES_API = "https://api.github.com/repos/ji-or-ji/openhanako-flomo/releases/latest";
+const RELEASES_API = "https://api.github.com/repos/ji-or-ji/open-hanako-flomo/releases/latest";
 
 function cmpVersion(a, b) {
   const pa = String(a).replace(/^v/i, "").split(/[.-]/).map((x) => Number(x) || 0);
@@ -53,18 +53,24 @@ export async function checkUpdate({ currentVersion, repoUrl } = {}) {
     latest: tag,
     newer: cmpVersion(tag, currentVersion) > 0,
     notes: String(rel.body || "").slice(0, 4000),
+    // 走 api.github.com 的 asset 接口（带 Accept: octet-stream），不要用
+    // browser_download_url：那个域名是 github.com，本机 443 被断，只有
+    // api.github.com 与它重定向到的 release-assets.githubusercontent.com 能通。
+    zipApiUrl: zip.url || "",
     zipUrl: zip.browser_download_url,
     zipName: zip.name,
     zipSize: zip.size || 0,
+    sha256ApiUrl: sum ? sum.url || "" : "",
     sha256Url: sum ? sum.browser_download_url : "",
     publishedAt: rel.published_at || "",
   };
 }
 
 async function readExpectedHash(info) {
-  if (!info.sha256Url) return "";
+  const url = info.sha256ApiUrl || info.sha256Url;
+  if (!url) return "";
   try {
-    const res = await fetch(info.sha256Url, { headers: { "user-agent": "hana-flomo-updater" } });
+    const res = await fetch(url, { headers: { "user-agent": "hana-flomo-updater", accept: "application/octet-stream" }, redirect: "follow" });
     if (!res.ok) return "";
     const text = (await res.text()).trim();
     const m = text.match(/[a-f0-9]{64}/i);
@@ -92,8 +98,11 @@ export async function applyUpdate({ installDir, dataDir, info, log = console }) 
   mkdirSync(tmpDir, { recursive: true });
   const zipPath = join(tmpDir, info.zipName || "update.zip");
 
-  log.info?.("下载", info.zipUrl);
-  const res = await fetch(info.zipUrl, { headers: { "user-agent": "hana-flomo-updater" } });
+  log.info?.("下载", info.zipApiUrl || info.zipUrl);
+  const res = await fetch(info.zipApiUrl || info.zipUrl, {
+    headers: { "user-agent": "hana-flomo-updater", accept: "application/octet-stream" },
+    redirect: "follow",
+  });
   if (!res.ok) throw new Error(`下载失败 ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   writeFileSync(zipPath, buf);
