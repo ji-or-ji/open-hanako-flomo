@@ -112,6 +112,18 @@
     border: 2px dashed rgba(127,214,192,.5); border-radius: 14px;
   }
   #drop.show { display: grid; }
+
+  /* 划词后浮出的小按钮 */
+  #selBtn {
+    position: fixed; z-index: 30; display: none;
+    height: 24px; padding: 0 9px; border-radius: 7px;
+    border: 1px solid rgba(127,214,192,.45);
+    background: rgba(20,26,33,.96); color: #7FD6C0;
+    font: inherit; font-size: 11px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  }
+  #selBtn.show { display: block; }
+  .memo .time .no { color: #7FD6C0; opacity: .8; margin-right: 5px; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -137,6 +149,7 @@
 
 <div id="note"></div>
 <div id="drop">松手就导入</div>
+<button id="selBtn" type="button">引用选中</button>
 <input id="file" type="file" accept=".zip,.html,.htm" hidden>
 
 <script type="module">
@@ -151,6 +164,7 @@
   const draftEl = el("draft");
   const sendBtn = el("send");
   const noteEl = el("note");
+  const selBtn = el("selBtn");
 
   let memos = [];
   let tagFilter = "";
@@ -237,10 +251,14 @@
   function memoNode(m) {
     const box = document.createElement("div");
     box.className = "memo";
+    box.dataset.no = String(m.no || "");
 
     const time = document.createElement("div");
     time.className = "time";
-    time.textContent = String(m.time || "").slice(5);
+    const no = document.createElement("span");
+    no.className = "no";
+    no.textContent = m.no ? `#${m.no}` : "#?";
+    time.append(no, document.createTextNode(String(m.time || "").slice(5)));
 
     const text = document.createElement("div");
     text.className = "text";
@@ -267,10 +285,10 @@
     const quote = document.createElement("button");
     quote.type = "button";
     quote.textContent = "引用";
-    quote.title = "把这条发进当前会话";
+    quote.title = "把这一整条发进当前会话（过长只发编号）";
     quote.addEventListener("click", (e) => {
       e.stopPropagation();
-      void quoteIntoSession(m, quote);
+      void quoteIntoSession({ no: m.no, kind: "note" }, quote);
     });
 
     const copy = document.createElement("button");
@@ -303,31 +321,67 @@
     }
   }
 
-  async function quoteIntoSession(m, btn) {
+  async function quoteIntoSession(payload, btn) {
     const target = await activeSession();
     if (!target.sessionId && !target.sessionPath) {
       say("没拿到当前会话，先在主窗口打开一个对话", "bad");
       return;
     }
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
     try {
       const r = await api("/__quote", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          text: `引用 flomo 笔记（${m.time}）：\n${m.content}`,
-          sessionId: target.sessionId,
-          sessionPath: target.sessionPath,
-        }),
+        body: JSON.stringify({ ...payload, sessionId: target.sessionId, sessionPath: target.sessionPath }),
       });
-      if (r.ok) say("已投递到当前会话", "ok");
+      if (r.ok) say(payload.kind === "selection" ? "选中段落已投递" : "已投递到当前会话", "ok");
       else say(r.error || "投递失败", "bad");
     } catch (err) {
       say(`投递失败：${err?.message || err}`, "bad");
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   }
+
+  // ---- 划词引用 ----
+  function hideSelBtn() {
+    selBtn.classList.remove("show");
+    selBtn.dataset.no = "";
+    selBtn.dataset.text = "";
+  }
+
+  document.addEventListener("mouseup", () => {
+    setTimeout(() => {
+      const sel = window.getSelection();
+      const text = sel ? String(sel).trim() : "";
+      if (!text) {
+        hideSelBtn();
+        return;
+      }
+      const node = sel.anchorNode;
+      const host = node ? (node.nodeType === 1 ? node : node.parentElement)?.closest?.(".memo") : null;
+      if (!host) {
+        hideSelBtn();
+        return;
+      }
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      selBtn.dataset.no = host.dataset.no || "";
+      selBtn.dataset.text = text;
+      selBtn.style.left = `${Math.min(window.innerWidth - 90, Math.max(6, rect.left))}px`;
+      selBtn.style.top = `${Math.max(6, rect.top - 30)}px`;
+      selBtn.classList.add("show");
+    }, 0);
+  });
+
+  selBtn.addEventListener("click", async () => {
+    const no = Number(selBtn.dataset.no) || 0;
+    const text = selBtn.dataset.text || "";
+    hideSelBtn();
+    window.getSelection()?.removeAllRanges();
+    await quoteIntoSession({ no, kind: "selection", text }, selBtn);
+  });
+
+  listEl.addEventListener("scroll", hideSelBtn, { passive: true });
 
   async function load() {
     try {

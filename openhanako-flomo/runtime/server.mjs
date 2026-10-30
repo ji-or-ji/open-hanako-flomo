@@ -43,6 +43,10 @@ mkdirSync(DATA_DIR, { recursive: true });
 const memosPath = () => join(DATA_DIR, "memos.json");
 const queueDir = () => join(DATA_DIR, "quote-queue");
 const webhookPath = () => join(DATA_DIR, "webhook.txt");
+const numbersPath = () => join(DATA_DIR, "numbers.json");
+
+/** 引用时只报编号，不报整篇；超过这个字数就不附正文了。 */
+const QUOTE_TEXT_LIMIT = 800;
 
 function readMemos() {
   try {
@@ -56,6 +60,75 @@ function readMemos() {
 function writeMemos(list) {
   mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(memosPath(), JSON.stringify(list, null, 2), "utf8");
+}
+
+/**
+ * 给每条笔记一个稳定编号（#1、#2…），落盘记住。
+ * 不按当前位置临时算：排序一变编号就飘，引用出去的 #12 就对不上人了。
+ */
+function memoNumbers(memos) {
+  let map = {};
+  try {
+    map = JSON.parse(readFileSync(numbersPath(), "utf8")) || {};
+  } catch {
+    map = {};
+  }
+  let max = 0;
+  for (const v of Object.values(map)) if (Number.isFinite(v) && v > max) max = v;
+  let changed = false;
+  for (const m of [...memos].sort((a, b) => String(a.time).localeCompare(String(b.time)))) {
+    if (!map[m.id]) {
+      map[m.id] = ++max;
+      changed = true;
+    }
+  }
+  if (changed) {
+    try {
+      writeFileSync(numbersPath(), JSON.stringify(map, null, 2), "utf8");
+    } catch {
+      /* 写不进去也不影响读 */
+    }
+  }
+  return map;
+}
+
+/**
+ * 把“引用一条”组装成发给助手的文本。
+ *   · 划词引用：只发选中那一段 + 来源编号
+ *   · 整条引用：正文不超限才附上，超了只给编号与开头，让助手需要时用 search_memo 去取
+ */
+function composeQuote({ no, text, kind, sessionId, sessionPath }) {
+  const memos = readMemos();
+  const numbers = memoNumbers(memos);
+  const n = Number(no) || 0;
+  const memo = n ? memos.find((m) => numbers[m.id] === n) : null;
+
+  const head = memo ? `引用 flomo 笔记 #${n} · ${memo.time}` : `引用 flomo 笔记${n ? ` #${n}` : ""}`;
+  let body = String(text || "").trim();
+  let tail = "";
+
+  if (!memo && !body) throw new Error("没有内容可引用");
+
+  if (kind === "note" && memo) {
+    const full = String(memo.content || "");
+    if (full.length > QUOTE_TEXT_LIMIT) {
+      body = `（正文 ${full.length} 字，过长未附。开头：${full.slice(0, 60)}…）`;
+      tail = "\n需要全文时用 search_memo 按这段开头检索。";
+    } else {
+      body = full;
+    }
+  } else if (kind === "selection" && body.length > QUOTE_TEXT_LIMIT) {
+    body = body.slice(0, QUOTE_TEXT_LIMIT) + "…（选区过长，已截断）";
+  }
+
+  if (!body) throw new Error("没有内容可引用");
+  const quoted = body.split("\n").map((line) => `> ${line}`).join("\n");
+  const label = kind === "selection" ? "（划词摘录）" : "";
+  return {
+    text: `${head}${label}\n${quoted}${tail}`,
+    sessionId: sessionId || "",
+    sessionPath: sessionPath || "",
+  };
 }
 
 function importFile(path) {
@@ -189,13 +262,14 @@ const server = createServer(async (req, res) => {
     // ---- 笔记数据 ----
     if (url.pathname === "/__memos") {
       const memos = readMemos();
+      const numbers = memoNumbers(memos);
       const tags = new Map();
       for (const m of memos) for (const t of m.tags || []) tags.set(t, (tags.get(t) || 0) + 1);
       send(res, 200, {
         ok: true,
         total: memos.length,
         tags: [...tags.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
-        memos,
+        memos: memos.map((m) => ({ ...m, no: numbers[m.id] || 0, length: String(m.content || "").length })),
       });
       return;
     }
@@ -225,7 +299,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__quote" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
-      send(res, 200, { ok: true, ...enqueueQuote(body) });
+      send(res, 200, { ok: true, ...enqueueQuote(composeQuote(body)) });
       return;
     }
 

@@ -1,12 +1,25 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { readMemos, textResult } from "../lib/store.js";
+
+/** 卡片上的编号（#12）到底指哪条，存在 dataDir/numbers.json 里。 */
+function readNumbers(dataDir) {
+  try {
+    return JSON.parse(readFileSync(join(dataDir, "numbers.json"), "utf8")) || {};
+  } catch {
+    return {};
+  }
+}
 
 export async function register(sdk) {
   await sdk.tools.register({
     name: "search_memo",
-    description: "在已导入的浮墨笔记中搜索，支持关键词、标签和时间范围筛选。",
+    description:
+      "在已导入的浮墨笔记中搜索，支持关键词、标签、时间范围；也可以直接传编号获取某一条全文（卡片上显示的 #12 就是这个编号）。",
     parameters: {
       type: "object",
       properties: {
+        no: { type: "number", description: "笔记编号（引用时看到的 #12 里的 12），传了就直接返回那一条全文" },
         query: { type: "string", description: "搜索关键词，匹配笔记正文与标签" },
         tag: { type: "string", description: "按标签筛选，如 镜片、镜片/1。留空则不限制" },
         from: { type: "string", description: "起始日期，格式 YYYY-MM-DD。留空则不限制" },
@@ -25,6 +38,14 @@ export async function register(sdk) {
       }
 
       const query = (args?.query || "").trim().toLowerCase();
+      const wantNo = Number(args?.no) || 0;
+      if (wantNo) {
+        const numbers = readNumbers(sdk.dataDir);
+        const hit = memos.find((m) => numbers[m.id] === wantNo);
+        if (!hit) return textResult(`没有编号 #${wantNo} 的笔记。`);
+        const tags = Array.isArray(hit.tags) && hit.tags.length ? ` [${hit.tags.join(", ")}]` : "";
+        return textResult(`#${wantNo} · ${hit.time}${tags}\n\n${hit.content}`);
+      }
       const tagFilter = (args?.tag || "").trim();
       const from = args?.from || "";
       const to = args?.to || "";
@@ -50,9 +71,11 @@ export async function register(sdk) {
       if (results.length === 0) return textResult("未找到匹配的笔记。");
 
       const lines = [`找到 ${total} 条匹配笔记，显示前 ${results.length} 条：`, ""];
+      const numbers = readNumbers(sdk.dataDir);
       for (const memo of results) {
         const tags = Array.isArray(memo.tags) && memo.tags.length > 0 ? ` [${memo.tags.join(", ")}]` : "";
-        lines.push(`--- ${memo.time}${tags}`);
+        const no = numbers[memo.id] ? `#${numbers[memo.id]} ` : "";
+        lines.push(`--- ${no}${memo.time}${tags}`);
         lines.push(memo.content);
         lines.push("");
       }
