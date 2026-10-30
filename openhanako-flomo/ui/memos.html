@@ -330,11 +330,15 @@
   let noteTimer = null;
   let mcp = { configured: false };
 
-  function say(text, kind = "") {
+  function say(text, kind = "", sticky = false) {
     noteEl.textContent = text;
     noteEl.className = "show " + kind;
     if (noteTimer) clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => (noteEl.className = ""), 4200);
+    if (!sticky) noteTimer = setTimeout(() => (noteEl.className = ""), 4200);
+  }
+
+  function saySticky(text, kind = "") {
+    say(text, kind, true);
   }
 
   async function api(path, init) {
@@ -627,7 +631,7 @@
   async function quoteIntoSession(payload, btn) {
     const target = await activeSession();
     if (!target.sessionId && !target.sessionPath) {
-      say("没拿到当前会话 id（已存诊断，稍后修）", "bad");
+      saySticky("没拿到当前会话 id", "bad");
       return;
     }
     if (btn) btn.disabled = true;
@@ -638,9 +642,9 @@
         body: JSON.stringify({ ...payload, sessionId: target.sessionId, sessionPath: target.sessionPath }),
       });
       if (r.ok) say(payload.kind === "selection" ? "选中段落已投递" : "已投递到当前会话", "ok");
-      else say(r.error || "投递失败", "bad");
+      else saySticky(`${r.error || "投递失败"}`, "bad");
     } catch (err) {
-      say(`投递失败：${err?.message || err}`, "bad");
+      saySticky(`投递失败：${err?.message || err}`, "bad");
     } finally {
       if (btn) btn.disabled = false;
     }
