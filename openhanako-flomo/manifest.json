@@ -2,14 +2,17 @@
   "manifestVersion": 2,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "entry": "index.js",
   "icon": "assets/icon.png",
-  "description": "浮墨笔记（flomo）接入：写入、搜索、导入笔记。",
+  "description": "浮墨笔记（flomo）接入：网页版直接嵌在卡片里，写入、搜索、导入笔记，卡片上点一下就能更新自己。",
   "minAppVersion": "1.3.6-beta",
   "capabilities": [
     "app/tools.expose-to-model",
-    "app/resources.read"
+    "app/resources.read",
+    "app/runtime.execute",
+    "app/runtime.local-machine",
+    "app/runtime.network"
   ],
   "network": {
     "allowedHosts": ["flomoapp.com"],
@@ -18,6 +21,18 @@
     "maxResponseBytes": 2097152
   },
   "contributes": {
+    "cards": [
+      {
+        "id": "flomo",
+        "title": "flomo",
+        "description": "网页版浮墨直接嵌在卡片里，写、翻、搜都在这一页；左下角那簇小按键里有一键更新。",
+        "route": "/embed.html",
+        "realization": "page",
+        "siteNavEntry": true,
+        "cardForm": "edge-to-edge",
+        "face": { "image": "assets/cover.png" }
+      }
+    ],
     "settings": {
       "title": "Flomo",
       "schema": {

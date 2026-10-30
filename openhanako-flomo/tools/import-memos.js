@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import { parseFlomoExport } from "../lib/parse-export.js";
-import { pickHtmlEntry, unzip } from "../lib/unzip.js";
+import { pickHtmlEntry, unzip } from "../lib/unzip.mjs";
 import { readMemos, textResult, writeMemos } from "../lib/store.js";
 
 function extractContent(result) {

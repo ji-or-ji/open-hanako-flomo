@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flomo</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #cfd8e3; }
+
+  #frame {
+    position: fixed; inset: 0; width: 100%; height: 100%; border: 0;
+    background: #ffffff;
+  }
+
+  /* 左下角悬浮小簇：平时几乎看不见，鼠标过去才亮起来 */
+  #dock {
+    position: fixed; left: 12px; bottom: 12px; z-index: 9;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 6px;
+    border-radius: 12px;
+    background: rgba(20, 26, 33, .72);
+    border: 1px solid rgba(255, 255, 255, .08);
+    backdrop-filter: blur(10px);
+    opacity: .34;
+    transition: opacity .22s ease;
+  }
+  #dock:hover, #dock.busy { opacity: 1; }
+  #dock button {
+    height: 24px; padding: 0 9px;
+    border: 0; border-radius: 8px;
+    background: rgba(255, 255, 255, .06);
+    color: #cfd8e3; font: inherit; font-size: 11.5px;
+    cursor: pointer; transition: background .16s ease, color .16s ease;
+    white-space: nowrap;
+  }
+  #dock button:hover { background: rgba(255, 255, 255, .13); }
+  #dock button:disabled { opacity: .45; cursor: default; }
+  #note { font-size: 11px; opacity: .75; padding: 0 4px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #note.warn { color: #E0A05C; }
+  #note.ok { color: #7FD6A8; }
+  #note.bad { color: #E06C5A; }
+
+  /* iframe 装不出来的兜底 */
+  #fallback {
+    position: fixed; inset: 0; display: none; place-content: center; text-align: center;
+    padding: 40px; background: #0f1419;
+  }
+  #fallback.show { display: grid; }
+  #fallback h1 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+  #fallback p { font-size: 12px; opacity: .6; margin: 0 0 16px; line-height: 1.7; }
+  #fallback a {
+    display: inline-block; padding: 8px 16px; border-radius: 10px;
+    background: rgba(255, 255, 255, .08); color: #cfd8e3;
+    font-size: 12px; text-decoration: none;
+  }
+</style>
+</head>
+<body>
+<iframe id="frame" src="https://v.flomoapp.com/mine" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+
+<div id="dock">
+  <span id="note"></span>
+  <button id="reload" type="button">刷新</button>
+  <button id="update" type="button">一键更新</button>
+  <button id="open" type="button">外部打开</button>
+</div>
+
+<div id="fallback">
+  <div>
+    <h1>网页版 flomo 没能嵌进来</h1>
+    <p>可能是登录页拒绝了被嵌入，或者当下网络到不了 flomo。<br>点下面用系统浏览器打开，登录一次之后回到这里刷新。</p>
+    <a href="https://v.flomoapp.com/mine" target="_blank" rel="noreferrer">在浏览器里打开 flomo</a>
+  </div>
+</div>
+<script type="module">
+  const BASE = "http://127.0.0.1:47811";
+  const frame = document.getElementById("frame");
+  const note = document.getElementById("note");
+  const updateBtn = document.getElementById("update");
+  const reloadBtn = document.getElementById("reload");
+  const openBtn = document.getElementById("open");
+  const dock = document.getElementById("dock");
+  const fallback = document.getElementById("fallback");
+
+  let loaded = false;
+  let pending = null;
+
+  function say(text, kind = "") {
+    note.textContent = text || "";
+    note.className = kind;
+    dock.classList.toggle("busy", Boolean(text));
+  }
+
+  frame.addEventListener("load", () => {
+    loaded = true;
+    fallback.classList.remove("show");
+  });
+
+  // 12 秒还没 load，说明被拒或被网络卡住
+  setTimeout(() => {
+    if (!loaded) fallback.classList.add("show");
+  }, 12000);
+
+  reloadBtn.addEventListener("click", () => {
+    loaded = false;
+    frame.src = "https://v.flomoapp.com/mine?_=" + Date.now();
+    say("");
+  });
+
+  openBtn.addEventListener("click", () => {
+    window.open("https://v.flomoapp.com/mine", "_blank", "noreferrer");
+  });
+
+  async function api(path, init) {
+    const res = await fetch(BASE + path, { cache: "no-store", ...init });
+    return res.json();
+  }
+
+  updateBtn.addEventListener("click", async () => {
+    if (pending) {
+      // 第二次点击 = 确认更新
+      updateBtn.disabled = true;
+      say("正在下载…");
+      try {
+        const r = await api("/__update/apply", { method: "POST" });
+        if (r.upToDate) say(`已是最新 ${r.current}`, "ok");
+        else if (r.ok) say(`已更新到 ${r.to}，重启 Hana 生效`, "ok");
+        else say(`更新失败：${r.error || "未知原因"}`, "bad");
+      } catch (err) {
+        say(`更新失败：${err?.message || err}`, "bad");
+      } finally {
+        pending = null;
+        updateBtn.textContent = "一键更新";
+        updateBtn.disabled = false;
+      }
+      return;
+    }
+    updateBtn.disabled = true;
+    say("检查更新…");
+    try {
+      const r = await api("/__update/check");
+      if (!r.ok) throw new Error(r.error || "检查失败");
+      if (!r.newer) {
+        say(`已是最新 ${r.current}`, "ok");
+      } else {
+        pending = r;
+        updateBtn.textContent = `更新到 ${r.latest}`;
+        say(`有新版 ${r.current} → ${r.latest}，再点一下确认`, "warn");
+      }
+    } catch (err) {
+      // 运行时没起来（或端口被别的程序占着）
+      say(`连不上更新服务：${err?.message || err}`, "bad");
+    } finally {
+      updateBtn.disabled = false;
+      if (!pending) setTimeout(() => say(""), 4000);
+    }
+  });
+
+  // 启动时静默问一次健康状态，不打扰
+  api("/__health").then((h) => {
+    if (h?.ok && h.version) document.title = `flomo · ${h.version}`;
+  }).catch(() => {});
+</script>
+</body>
+</html>
