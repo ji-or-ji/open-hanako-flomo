@@ -2,6 +2,12 @@
 
 浮墨笔记（flomo）接入：网页版直接嵌在卡片里，写入、搜索、导入笔记，卡片自己会更新。
 
+## Agent 用法（原技能，见 docs/agent-usage.md）
+
+四个工具：write_memo（写）、search_memo（搜本地索引）、import_memos（导入导出包）、set_config（存 webhook）。触发词和调用规矩都在 docs/agent-usage.md 里。
+
+> 2.0.2 起不再随包携带 skills/：宿主会为 App 的技能目录开一个目录句柄，导致 App 运行中无法热更新（安装时报 EPERM）。技能内容挪到 docs/，工具描述本身也够模型用。
+
 ## 卡片
 
 卡片中心里名叫 **flomo** 的一张，打开就是一整页 `v.flomoapp.com/mine`——写、翻、搜都在那里，用的是你自己的登录。左下角有一簇小按键，平时几乎看不见，鼠标过去才亮：

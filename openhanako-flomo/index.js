@@ -5,11 +5,23 @@
  */
 
 import { defineApp } from "./sdk/app-contract/server-client.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { register as registerWriteMemo } from "./tools/write-memo.js";
 import { register as registerSearchMemo } from "./tools/search-memo.js";
 import { register as registerSetConfig } from "./tools/set-config.js";
 import { register as registerImportMemos } from "./tools/import-memos.js";
 import { readMemos } from "./lib/store.js";
+
+/** sdk 里没挂 manifest，版本号只能自己从安装目录里读。 */
+async function readVersion() {
+  try {
+    const path = fileURLToPath(new URL("./manifest.json", import.meta.url));
+    return JSON.parse(readFileSync(path, "utf8")).version || "";
+  } catch {
+    return "";
+  }
+}
 
 export default defineApp(async (sdk) => {
   await registerWriteMemo(sdk);
@@ -20,7 +32,7 @@ export default defineApp(async (sdk) => {
   // 更新服务：卡片上的“一键更新”直接打 127.0.0.1:47811。
   // 它必须在沙盒外跑（要下载、要写安装目录），所以开一个受管运行时。
   // 起不来也不影响记笔记：卡片会提示“连不上更新服务”。
-  const version = sdk.manifest?.version || "";
+  const version = await readVersion();
   try {
     const info = await sdk.runtime.start({
       runtime: "node",

@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "entry": "index.js",
   "icon": "assets/icon.png",
   "description": "浮墨笔记（flomo）接入：网页版直接嵌在卡片里，写入、搜索、导入笔记，卡片上点一下就能更新自己。",
