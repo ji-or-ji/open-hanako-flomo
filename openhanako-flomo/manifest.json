@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "entry": "index.js",
   "icon": "assets/icon.png",
   "description": "浮墨笔记（flomo）接入：网页版直接嵌在卡片里，写入、搜索、导入笔记，卡片上点一下就能更新自己。",
@@ -27,9 +27,7 @@
         "title": "flomo",
         "description": "本地存下的 flomo 笔记，按月份分段摆在一张小卡里：搜、筛标签、写一条、把某条引用进当前会话。",
         "route": "/memos.html",
-        "realization": "page",
-        "siteNavEntry": true,
-        "cardForm": "edge-to-edge",
+        "cardForm": "structural",
         "face": { "image": "assets/cover.png" }
       }
     ],
