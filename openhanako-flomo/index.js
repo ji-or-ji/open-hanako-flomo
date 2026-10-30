@@ -40,6 +40,26 @@ function writeJson(path, data) {
   }
 }
 
+/** 设置里改 webhook 后，运行时那边靠文件生效；定时对一次，不然一直空着。 */
+function startWebhookSync(sdk) {
+  let last = null;
+  const tick = async () => {
+    try {
+      const url = (await resolveWebhook(sdk)) || "";
+      if (url !== last) {
+        last = url;
+        writeWebhookFile(sdk.dataDir, url);
+      }
+    } catch {
+      /* 读不到就下次再试 */
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), 3000);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
 /** 卡片点了「引用」→ 运行时落一个队列文件 → 这里取走并发进会话。 */
 function startQuoteDrain(sdk) {
   const dir = join(sdk.dataDir, "quote-queue");
@@ -252,6 +272,7 @@ export default defineApp(async (sdk) => {
   await registerMcp(sdk);
 
   writeWebhookFile(sdk.dataDir, await resolveWebhook(sdk));
+  startWebhookSync(sdk);
 
   const version = readVersion();
   try {

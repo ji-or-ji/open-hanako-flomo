@@ -716,6 +716,10 @@
     } catch {
       mcp = { configured: false };
     }
+    await refreshWriteState();
+  }
+
+  async function refreshWriteState() {
     try {
       const h = await api("/__health");
       hasWebhook = Boolean(h?.webhook);
@@ -865,6 +869,15 @@
   });
 
   qEl.addEventListener("input", renderList);
+
+  // 设置里刚填完 webhook、回到卡片（或窗口重新可见）时重新问一次能不能写
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void refreshWriteState();
+  });
+  window.addEventListener("focus", () => void refreshWriteState());
+  setInterval(() => {
+    if (document.visibilityState === "visible" && !(mcp.configured || hasWebhook)) void refreshWriteState();
+  }, 6000);
   try {
     hana.theme?.subscribe?.(() => applyTheme());
   } catch {
