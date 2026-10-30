@@ -5,120 +5,157 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>flomo</title>
 <style>
+  :root {
+    --f-text: #cfd8e3;
+    --f-surface: rgba(255, 255, 255, .028);
+    --f-surface-hi: rgba(255, 255, 255, .055);
+    --f-field: rgba(255, 255, 255, .04);
+    --f-line: rgba(255, 255, 255, .07);
+    --f-line-strong: rgba(255, 255, 255, .13);
+    --f-accent: #7FD6C0;
+    --f-accent-ink: #0f1419;
+    --f-pill: rgba(20, 26, 33, .94);
+    --f-group: linear-gradient(rgba(15, 20, 25, .92), rgba(15, 20, 25, .72));
+    --f-overlay: rgba(15, 20, 25, .84);
+    --f-shadow: rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+  html[data-theme="light"] {
+    --f-text: #2c3540;
+    --f-surface: rgba(16, 24, 32, .035);
+    --f-surface-hi: rgba(16, 24, 32, .07);
+    --f-field: rgba(16, 24, 32, .04);
+    --f-line: rgba(16, 24, 32, .1);
+    --f-line-strong: rgba(16, 24, 32, .18);
+    --f-accent: #1f8a74;
+    --f-accent-ink: #ffffff;
+    --f-pill: rgba(255, 255, 255, .96);
+    --f-group: linear-gradient(rgba(250, 250, 248, .94), rgba(250, 250, 248, .7));
+    --f-overlay: rgba(250, 250, 248, .92);
+    --f-shadow: rgba(30, 40, 50, .18);
+    color-scheme: light;
+  }
+
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   * { box-sizing: border-box; }
   body {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: var(--text, #cfd8e3); font-size: 13px;
+    color: var(--text, var(--f-text)); font-size: 13px;
     -webkit-font-smoothing: antialiased;
     display: flex; flex-direction: column;
   }
 
   /* structural 形态：宿主给标题区，自己不再画标题栏 */
   .bar { display: none; }
-  .bar h1 { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; opacity: .7; margin: 0; }
-  .count { font-size: 10.5px; opacity: .42; font-variant-numeric: tabular-nums; }
-  .grow { flex: 1; }
+  .count { font-size: 10.5px; opacity: .55; font-variant-numeric: tabular-nums; }
   .icon {
     width: 22px; height: 22px; flex: none;
     display: grid; place-items: center;
-    border: 1px solid rgba(255,255,255,.09); border-radius: 7px;
-    background: rgba(255,255,255,.04); color: inherit;
+    border: 1px solid var(--f-line); border-radius: 7px;
+    background: var(--f-field); color: inherit;
     font: inherit; font-size: 11px; cursor: pointer;
     transition: background .16s ease, border-color .16s ease;
   }
-  .icon:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); }
+  .icon:hover { background: var(--f-surface-hi); border-color: var(--f-line-strong); }
   .icon:disabled { opacity: .4; cursor: default; }
 
   /* ---- 搜索（左边三个小图标，右边搜索框） ---- */
   .tools { padding: 0 12px 6px; display: flex; align-items: center; gap: 5px; flex: none; }
   input[type="search"] {
     flex: 1; min-width: 0; height: 26px; padding: 0 9px;
-    border: 1px solid rgba(255,255,255,.09); border-radius: 8px;
-    background: rgba(255,255,255,.04); color: inherit; font: inherit; font-size: 12px;
+    border: 1px solid var(--f-line); border-radius: 8px;
+    background: var(--f-field); color: inherit; font: inherit; font-size: 12px;
     outline: none;
   }
-  input[type="search"]:focus { border-color: rgba(127,214,192,.45); }
-  input[type="search"]::placeholder { color: rgba(207,216,227,.35); }
+  input[type="search"]:focus { border-color: var(--f-accent); }
+  input[type="search"]::placeholder { color: inherit; opacity: .4; }
   .chips { display: flex; gap: 5px; overflow-x: auto; padding: 0 12px 6px; scrollbar-width: none; flex: none; align-items: center; }
   .chips .count { margin-left: auto; padding-left: 6px; flex: none; }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
     flex: none; height: 22px; padding: 0 9px; border-radius: 7px;
-    border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03);
-    color: inherit; font: inherit; font-size: 11px; opacity: .75; cursor: pointer;
+    border: 1px solid var(--f-line); background: var(--f-surface);
+    color: inherit; font: inherit; font-size: 11px; opacity: .78; cursor: pointer;
     white-space: nowrap;
   }
-  .chip.on { background: rgba(127,214,192,.14); border-color: rgba(127,214,192,.4); opacity: 1; }
+  .chip.on { background: color-mix(in srgb, var(--f-accent) 16%, transparent); border-color: color-mix(in srgb, var(--f-accent) 45%, transparent); opacity: 1; }
 
   /* ---- 列表 ---- */
   .list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 10px 8px; }
   .list::-webkit-scrollbar { width: 8px; }
-  .list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
-  .group { font-size: 10.5px; letter-spacing: .06em; opacity: .38; padding: 10px 2px 5px; position: sticky; top: 0; background: linear-gradient(rgba(15,20,25,.92), rgba(15,20,25,.72)); backdrop-filter: blur(4px); }
+  .list::-webkit-scrollbar-thumb { background: var(--f-line-strong); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+  .group {
+    font-size: 10.5px; letter-spacing: .06em; opacity: .6; padding: 10px 2px 5px;
+    position: sticky; top: 0; background: var(--f-group); backdrop-filter: blur(4px);
+  }
   .memo {
     position: relative; padding: 9px 10px; margin-bottom: 6px;
-    border: 1px solid rgba(255,255,255,.06); border-radius: 10px;
-    background: rgba(255,255,255,.028);
+    border: 1px solid var(--f-line); border-radius: 10px;
+    background: var(--f-surface);
     transition: border-color .16s ease, background .16s ease;
   }
-  .memo:hover { background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.12); }
-  .memo .time { font-size: 10.5px; opacity: .4; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .memo:hover { background: var(--f-surface-hi); border-color: var(--f-line-strong); }
+  .memo .time { font-size: 10.5px; opacity: .55; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .memo .time .no { color: var(--f-accent); opacity: .9; margin-right: 5px; font-variant-numeric: tabular-nums; }
   .memo .text { line-height: 1.6; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .memo.open .text { -webkit-line-clamp: unset; }
   .memo .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-  .memo .tag { font-size: 10.5px; color: #7FD6C0; opacity: .85; }
+  .memo .tag { font-size: 10.5px; color: var(--f-accent); opacity: .9; }
   .acts { position: absolute; right: 6px; top: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity .14s ease; }
   .memo:hover .acts, .memo:focus-within .acts { opacity: 1; }
   .acts button {
-    height: 21px; padding: 0 7px; border-radius: 7px; border: 1px solid rgba(255,255,255,.12);
-    background: rgba(20,26,33,.9); color: inherit; font: inherit; font-size: 10.5px; cursor: pointer;
+    height: 21px; padding: 0 7px; border-radius: 7px; border: 1px solid var(--f-line-strong);
+    background: var(--f-pill); color: inherit; font: inherit; font-size: 10.5px; cursor: pointer;
   }
-  .acts button:hover { background: rgba(127,214,192,.18); border-color: rgba(127,214,192,.45); }
+  .acts button:hover { background: color-mix(in srgb, var(--f-accent) 22%, transparent); }
 
-  .empty { padding: 28px 18px; text-align: center; opacity: .5; line-height: 1.9; font-size: 12px; }
+  .empty { padding: 28px 18px; text-align: center; opacity: .6; line-height: 1.9; font-size: 12px; }
 
   /* ---- 底部写一条 ---- */
-  .composer { flex: none; border-top: 1px solid rgba(255,255,255,.07); padding: 8px 10px 9px; display: flex; gap: 7px; align-items: flex-end; }
+  .composer { flex: none; border-top: 1px solid var(--f-line); padding: 8px 10px 9px; display: flex; gap: 7px; align-items: flex-end; }
   textarea {
     flex: 1; min-height: 32px; max-height: 108px; resize: none;
-    padding: 7px 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 9px;
-    background: rgba(255,255,255,.04); color: inherit; font: inherit; font-size: 12px;
+    padding: 7px 10px; border: 1px solid var(--f-line); border-radius: 9px;
+    background: var(--f-field); color: inherit; font: inherit; font-size: 12px;
     line-height: 1.5; outline: none;
   }
-  textarea:focus { border-color: rgba(127,214,192,.45); }
+  textarea:focus { border-color: var(--f-accent); }
+  textarea::placeholder { color: inherit; opacity: .4; }
   .send {
     height: 32px; padding: 0 13px; border-radius: 9px; border: 0;
-    background: rgba(127,214,192,.9); color: #0f1419; font: inherit; font-size: 12px; font-weight: 600;
+    background: var(--f-accent); color: var(--f-accent-ink); font: inherit; font-size: 12px; font-weight: 600;
     cursor: pointer; transition: opacity .16s ease;
   }
-  .send:disabled { opacity: .4; cursor: default; }
+  .send:disabled { opacity: .45; cursor: default; }
 
   /* ---- 提示条 ---- */
   #note {
     position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
     max-width: 92%; padding: 6px 12px; border-radius: 9px;
-    background: rgba(20,26,33,.94); border: 1px solid rgba(255,255,255,.1);
+    background: var(--f-pill); border: 1px solid var(--f-line-strong);
     font-size: 11.5px; opacity: 0; pointer-events: none; transition: opacity .2s ease;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    box-shadow: 0 4px 16px var(--f-shadow);
   }
   #note.show { opacity: 1; }
-  #note.ok { color: #7FD6A8; }
-  #note.bad { color: #E06C5A; }
+  #note.ok { color: #2f9e6f; }
+  #note.bad { color: #c9523f; }
+  html:not([data-theme="light"]) #note.ok { color: #7FD6A8; }
+  html:not([data-theme="light"]) #note.bad { color: #E06C5A; }
 
   #drop {
     position: fixed; inset: 0; z-index: 20; display: none; place-content: center;
-    background: rgba(15,20,25,.84); color: #cfd8e3; font-size: 14px;
-    border: 2px dashed rgba(127,214,192,.5); border-radius: 14px;
+    background: var(--f-overlay); color: var(--text, var(--f-text)); font-size: 14px;
+    border: 2px dashed color-mix(in srgb, var(--f-accent) 55%, transparent); border-radius: 14px;
   }
   #drop.show { display: grid; }
 
-  /* 划词工具条：对齐 HanaAgent 原生那一条 */
+  /* 划词工具条：对齐 HanaAgent 原生那一条（深色胶囊，两套主题都一样） */
   #selBar {
     position: fixed; z-index: 30; display: none; align-items: center; gap: 2px;
     padding: 4px; border-radius: 10px;
     background: rgba(58, 69, 82, .97);
-    box-shadow: 0 6px 18px rgba(0,0,0,.42);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .42);
     backdrop-filter: blur(8px);
   }
   #selBar.show { display: flex; }
@@ -130,9 +167,8 @@
     transition: background .14s ease;
     white-space: nowrap;
   }
-  #selBar button:hover { background: rgba(255,255,255,.1); }
+  #selBar button:hover { background: rgba(255, 255, 255, .1); }
   #selBar svg { width: 13px; height: 13px; opacity: .8; flex: none; }
-  .memo .time .no { color: #7FD6C0; opacity: .8; margin-right: 5px; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -178,6 +214,45 @@
 
 <script type="module">
   import { hana } from "./assets/sdk.js";
+
+  // 宿主给的是深色还是浅色？--text 是宿主注入的正文色，拿它的亮度判断。
+  function applyTheme() {
+    // 先问宿主（hana.theme 的 appearance 最准），再拿 --text 亮度推，最后看系统偏好。
+    let light = null;
+    try {
+      const snap = hana.theme?.getSnapshot?.();
+      if (snap?.appearance === "light") light = true;
+      else if (snap?.appearance === "dark") light = false;
+    } catch {
+      /* 旧宿主没有 theme */
+    }
+    if (light === null) {
+      const hostText = getComputedStyle(document.documentElement).getPropertyValue("--text").trim();
+      if (hostText) {
+        const probe = document.createElement("span");
+        probe.style.color = hostText;
+        document.body.append(probe);
+        const rgb = getComputedStyle(probe).color;
+        probe.remove();
+        const parts = rgb.match(/\d+/g);
+        if (parts) {
+          const [r, g, b] = parts.map(Number);
+          light = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+        }
+      }
+    }
+    if (light === null) light = window.matchMedia("(prefers-color-scheme: light)").matches;
+    document.documentElement.dataset.theme = light ? "light" : "dark";
+  }
+  applyTheme();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") applyTheme();
+  });
+  try {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyTheme);
+  } catch {
+    /* 旧内核 */
+  }
 
   const BASE = "http://127.0.0.1:47811";
   const el = (id) => document.getElementById(id);
@@ -560,6 +635,11 @@
   });
 
   qEl.addEventListener("input", renderList);
+  try {
+    hana.theme?.subscribe?.(() => applyTheme());
+  } catch {
+    /* 旧宿主 */
+  }
   try {
     hana.chrome?.registerScrollSource?.(listEl);
   } catch {
