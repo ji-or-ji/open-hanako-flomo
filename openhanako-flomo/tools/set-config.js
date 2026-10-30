@@ -1,4 +1,4 @@
-import { resolveWebhook } from "../lib/config.js";
+import { resolveWebhook, writeWebhookFile } from "../lib/config.js";
 import { textResult } from "../lib/store.js";
 
 export async function register(sdk) {
@@ -29,6 +29,8 @@ export async function register(sdk) {
       } catch (err) {
         return textResult(`保存失败：${err?.message || err}`);
       }
+      // 卡片里的「发一条」走运行时，它读这个文件
+      writeWebhookFile(sdk.dataDir, incoming);
       return textResult(`配置已更新：\nwebhookUrl = ${incoming}`);
     },
   });

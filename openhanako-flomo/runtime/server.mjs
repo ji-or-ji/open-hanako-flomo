@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * runtime/server.mjs — 受管运行时：同步笔记 + （可选）从 Release 更新自身。
+ * runtime/server.mjs — 受管运行时：笔记卡的数据与动作。
  *
- * 为什么非得起个进程：App 后端跑在 AppHost 沙盒里，读不到用户的下载目录；卡片页面
- * 是浏览器环境，也碰不到文件系统。同步要「盯着下载目录 + 解压 + 写索引」，只能在
- * 沙盒外面的本机进程里做。
+ * 为什么非得起个进程：
+ *   · App 后端读不到用户的下载目录（导入要找 Downloads 里的导出包）
+ *   · 卡片页面碰不到文件系统，跨源也带不上 webhook 凭据
+ *   · 打开系统浏览器、落引用队列，都在沙盒外更省事
  *
- * 端口固定 47811：页面里的按钮直接打到 127.0.0.1:47811，端口一变就失联。
+ * 端口固定 47811：卡片里的按钮直接打到 127.0.0.1:47811，端口一变就失联。
  */
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyUpdate, checkUpdate, dirSize } from "../lib/updater.mjs";
@@ -36,17 +38,15 @@ const log = {
 
 mkdirSync(DATA_DIR, { recursive: true });
 
-// ---------- 笔记索引（和 App 后端共用同一份 memos.json） ----------
+// ---------- 本地索引（和 App 后端共用同一份 memos.json） ----------
 
-function memosPath() {
-  return join(DATA_DIR, "memos.json");
-}
+const memosPath = () => join(DATA_DIR, "memos.json");
+const queueDir = () => join(DATA_DIR, "quote-queue");
+const webhookPath = () => join(DATA_DIR, "webhook.txt");
 
 function readMemos() {
-  const p = memosPath();
-  if (!existsSync(p)) return [];
   try {
-    const parsed = JSON.parse(readFileSync(p, "utf8"));
+    const parsed = JSON.parse(readFileSync(memosPath(), "utf8"));
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -58,26 +58,26 @@ function writeMemos(list) {
   writeFileSync(memosPath(), JSON.stringify(list, null, 2), "utf8");
 }
 
-/** 解析一份导出并合并进索引。 */
 function importFile(path) {
   const parsed = parseExportFile(path);
   if (!parsed.length) return { ok: false, reason: "这个文件里没有 flomo 笔记" };
-  const existing = readMemos();
-  const { added, merged } = mergeIntoExisting(parsed, existing);
+  const { added, merged } = mergeIntoExisting(parsed, readMemos());
   writeMemos(merged);
   return { ok: true, parsed: parsed.length, added: added.length, total: merged.length };
 }
 
+/** webhook 由 App 后端写在 dataDir/webhook.txt 里，这里每次现读，改了立刻生效。 */
+function webhookUrl() {
+  try {
+    return readFileSync(webhookPath(), "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
 // ---------- 等待导出包落盘 ----------
 
-const sync = {
-  state: "idle", // idle | watching | done | timeout | error
-  sinceMs: 0,
-  deadline: 0,
-  dirs: [],
-  message: "",
-  result: null,
-};
+const sync = { state: "idle", sinceMs: 0, deadline: 0, dirs: [], message: "", result: null };
 let syncTimer = null;
 
 function stopSync(state, message) {
@@ -88,9 +88,7 @@ function stopSync(state, message) {
 }
 
 function scanOnce() {
-  const hits = findRecentCandidates(sync.dirs, sync.sinceMs);
-  for (const hit of hits) {
-    // 有些 zip 正在写，先跳过尺寸还在变的
+  for (const hit of findRecentCandidates(sync.dirs, sync.sinceMs)) {
     let res;
     try {
       res = importFile(hit.path);
@@ -104,7 +102,7 @@ function scanOnce() {
     }
   }
   if (Date.now() > sync.deadline) {
-    stopSync("timeout", "没等到导出文件。在 flomo 页面里点 设置 → 导入导出 → 导出，下载完我这边会自动接上。");
+    stopSync("timeout", "没等到导出文件。下载可能被内嵌页面的沙箱拦了：点「外部打开」，在浏览器里导出，再把包拖回这张卡片。");
     return;
   }
   syncTimer = setTimeout(scanOnce, 1200);
@@ -123,7 +121,22 @@ function startSync(seconds) {
   return { dirs: sync.dirs, seconds: span };
 }
 
-// ---------- 自我更新（备用：卡片界面没有入口，留给会话里手动调） ----------
+// ---------- 引用队列（App 后端取走并投进会话） ----------
+
+function enqueueQuote({ text, sessionId, sessionPath }) {
+  const body = String(text || "").trim();
+  if (!body) throw new Error("没有内容可引用");
+  mkdirSync(queueDir(), { recursive: true });
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  writeFileSync(
+    join(queueDir(), `${id}.json`),
+    JSON.stringify({ id, text: body, sessionId: sessionId || "", sessionPath: sessionPath || "", at: Date.now() }),
+    "utf8",
+  );
+  return { id };
+}
+
+// ---------- 自我更新（备用，无界面入口） ----------
 
 let busy = "";
 let lastResult = null;
@@ -137,6 +150,15 @@ function send(res, code, data) {
     "cache-control": "no-store",
   });
   res.end(body);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
 }
 
 const server = createServer(async (req, res) => {
@@ -153,20 +175,63 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   try {
     if (url.pathname === "/__health") {
-      const memos = readMemos();
       send(res, 200, {
         ok: true,
         version: VERSION,
         pid: process.pid,
-        installDir: INSTALL_DIR,
+        memos: readMemos().length,
+        webhook: Boolean(webhookUrl()),
         size: dirSize(INSTALL_DIR),
-        memos: memos.length,
       });
       return;
     }
+
+    // ---- 笔记数据 ----
+    if (url.pathname === "/__memos") {
+      const memos = readMemos();
+      const tags = new Map();
+      for (const m of memos) for (const t of m.tags || []) tags.set(t, (tags.get(t) || 0) + 1);
+      send(res, 200, {
+        ok: true,
+        total: memos.length,
+        tags: [...tags.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+        memos,
+      });
+      return;
+    }
+    if (url.pathname === "/__memo/new" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const text = String(body.text || "").trim();
+      if (!text) {
+        send(res, 400, { ok: false, error: "内容为空" });
+        return;
+      }
+      const hook = webhookUrl();
+      if (!hook) {
+        send(res, 400, { ok: false, error: "还没配 Incoming Webhook：设置 → 扩展 → OpenHanako-flomo" });
+        return;
+      }
+      const r = await fetch(hook, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!r.ok) {
+        send(res, 502, { ok: false, error: `flomo 回了 ${r.status}` });
+        return;
+      }
+      send(res, 200, { ok: true, sent: text.length });
+      return;
+    }
+    if (url.pathname === "/__quote" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      send(res, 200, { ok: true, ...enqueueQuote(body) });
+      return;
+    }
+
+    // ---- 导入 ----
     if (url.pathname === "/__sync/start" && req.method === "POST") {
-      const info = startSync(url.searchParams.get("seconds"));
-      send(res, 200, { ok: true, ...info });
+      send(res, 200, { ok: true, ...startSync(url.searchParams.get("seconds")) });
       return;
     }
     if (url.pathname === "/__sync/status") {
@@ -178,23 +243,51 @@ const server = createServer(async (req, res) => {
       send(res, 200, { ok: true });
       return;
     }
-    if (url.pathname === "/__sync/import" && req.method === "POST") {
-      const path = url.searchParams.get("path");
-      if (!path) {
-        send(res, 400, { ok: false, error: "缺少 path" });
+    if (url.pathname === "/__sync/upload" && req.method === "POST") {
+      const buf = await readBody(req);
+      if (!buf.length) {
+        send(res, 400, { ok: false, error: "空文件" });
         return;
       }
-      if (!existsSync(path)) {
+      const rawName = url.searchParams.get("name") || "upload.zip";
+      const safe = rawName.replace(/[^\w.\-]/g, "_").slice(-60) || "upload.zip";
+      const tmp = join(DATA_DIR, `upload-${Date.now()}-${safe}`);
+      writeFileSync(tmp, buf);
+      let r;
+      try {
+        r = importFile(tmp);
+      } finally {
+        rmSync(tmp, { force: true });
+      }
+      send(res, 200, { ...r, file: rawName, bytes: buf.length });
+      return;
+    }
+    if (url.pathname === "/__sync/import" && req.method === "POST") {
+      const path = url.searchParams.get("path");
+      if (!path || !existsSync(path)) {
         send(res, 404, { ok: false, error: "找不到这个文件" });
         return;
       }
-      const r = importFile(path);
-      send(res, 200, { ...r, file: path });
+      send(res, 200, { ...importFile(path), file: path });
       return;
     }
+
+    // ---- 打开系统浏览器（卡片里的 window.open 会被沙箱挡） ----
+    if (url.pathname === "/__open" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const target = String(body.url || "");
+      if (!/^https?:\/\//i.test(target)) {
+        send(res, 400, { ok: false, error: "只允许 http(s) 链接" });
+        return;
+      }
+      spawn("cmd", ["/c", "start", "", target], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+      send(res, 200, { ok: true });
+      return;
+    }
+
+    // ---- 自我更新（无界面入口，留给会话里手动调） ----
     if (url.pathname === "/__update/check") {
-      const info = await checkUpdate({ currentVersion: VERSION });
-      send(res, 200, { ok: true, ...info });
+      send(res, 200, { ok: true, ...(await checkUpdate({ currentVersion: VERSION })) });
       return;
     }
     if (url.pathname === "/__update/apply" && req.method === "POST") {
@@ -216,10 +309,14 @@ const server = createServer(async (req, res) => {
           return;
         }
         busy = "downloading";
-        const result = await applyUpdate({ installDir: INSTALL_DIR, dataDir: DATA_DIR, info: { ...info, current: current.version }, log });
-        lastResult = result;
+        lastResult = await applyUpdate({
+          installDir: INSTALL_DIR,
+          dataDir: DATA_DIR,
+          info: { ...info, current: current.version },
+          log,
+        });
         busy = "";
-        send(res, 200, { ...result, restart: true });
+        send(res, 200, { ...lastResult, restart: true });
       } catch (err) {
         busy = "";
         log.error("更新失败", err?.message || err);
@@ -227,10 +324,7 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
-    if (url.pathname === "/__update/status") {
-      send(res, 200, { ok: true, busy, lastResult });
-      return;
-    }
+
     send(res, 404, { ok: false, error: "not found" });
   } catch (err) {
     log.error("请求出错", err?.message || err);

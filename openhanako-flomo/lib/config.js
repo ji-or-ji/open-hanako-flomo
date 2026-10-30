@@ -6,7 +6,7 @@
  * 就不用再填一遍。
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export function legacyConfigPath(dataDir) {
@@ -38,4 +38,14 @@ export async function resolveWebhook(sdk) {
     return legacy.webhookUrl.trim();
   }
   return "";
+}
+
+/** 运行时按文件读 webhook：改配置后立刻生效，不用重启运行时。 */
+export function writeWebhookFile(dataDir, url) {
+  try {
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, "webhook.txt"), url || "", "utf8");
+  } catch {
+    /* 写不进去就算了，写笔记时会报“还没配 webhook” */
+  }
 }
