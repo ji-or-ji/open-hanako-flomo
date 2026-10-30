@@ -80,10 +80,12 @@ export function parseExportFile(path) {
   return parseFlomoExport(html);
 }
 
-/** 解析出的笔记合并进已有索引（按 id 去重）。 */
+/** 解析出的笔记合并进已有索引（按 id 去重；id 换了但时间+正文相同的也当同一条）。 */
 export function mergeIntoExisting(parsed, existing) {
   const known = new Set(existing.map((m) => m.id));
-  const added = parsed.filter((m) => !known.has(m.id));
+  const fingerprint = (m) => `${m.time}\u0000${m.content}`;
+  const knownPrint = new Set(existing.map(fingerprint));
+  const added = parsed.filter((m) => !known.has(m.id) && !knownPrint.has(fingerprint(m)));
   const merged = [...existing, ...added].sort((a, b) => String(b.time).localeCompare(String(a.time)));
   return { added, merged };
 }

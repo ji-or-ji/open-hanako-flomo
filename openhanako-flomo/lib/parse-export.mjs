@@ -19,7 +19,7 @@ export function parseFlomoExport(html) {
     const images = extractImages(block);
 
     memos.push({
-      id: generateId(time, cleanContent),
+      id: extractUpstreamId(block) || generateId(time, cleanContent),
       time,
       content: cleanContent,
       tags,
@@ -134,6 +134,25 @@ function extractImages(block) {
 /**
  * 为 memo 生成唯一 ID
  */
+/**
+ * 先认 flomo 自己的笔记 id：导出页里一般会带 memo_id 或链接。
+ * 这样本地 id 跟线上就是同一个，改笔记不用再去搜一次猜 id。
+ * 实在没有才退回自造 id。
+ */
+function extractUpstreamId(block) {
+  const patterns = [
+    /memo_id[=\s:"'&]+([A-Za-z0-9_-]{5,})/i,
+    /data-(?:memo-)?id\s*=\s*"([^"]{5,})"/i,
+    /\bid\s*=\s*"memo[-_]?([A-Za-z0-9_-]{5,})"/i,
+    /href\s*=\s*"[^"]*\/(?:mine\/\?memo_id=|m\/)([A-Za-z0-9_-]{5,})/i,
+  ];
+  for (const re of patterns) {
+    const m = String(block || "").match(re);
+    if (m) return m[1];
+  }
+  return "";
+}
+
 function generateId(time, content) {
   const hash = simpleHash(content);
   return `${time}_${hash}`;

@@ -150,16 +150,17 @@ function startMcpDrain(sdk) {
       const text = String(payload?.text || "").trim();
       if (!text) return { ok: false, error: "新正文为空" };
       let id = String(payload?.id || "").trim();
-      if (!id) {
-        // 本地索引里的 id 是我们自己生成的，跟 flomo 线上不是一回事；
-        // 只能用原文前缀搜一次，再从返回里猜它的线上 id。
+      // 旧数据里的 id 是当初自己造的（时间_哈希），跟线上对不上；
+      // 新导入的已经直接用 flomo 的 memo_id，这一支只为兼容老库。
+      if (!id || /^\d{4}-\d{2}-\d{2} [\d:]+_[a-z0-9]{4,}$/.test(id)) {
         const hint = String(payload?.hint || text).slice(0, 24);
-        if (!picked.search) return { ok: false, error: "没有线上 id，MCP 里又没有搜索工具，改不了" };
+        if (!picked.search) return { ok: false, error: "这条笔记没有线上 id，MCP 里又没有搜索工具，改不了" };
         const found = await client.callTool(picked.search, client.buildArgs(picked.search, { query: hint, limit: 5 }));
         const out = toolOutcome(found);
         const flat = out.ok ? out.text : JSON.stringify(found);
-        id = guessNoteId(flat);
-        if (!id) return { ok: false, error: "搜索没返回可识别的笔记 id", raw: flat.slice(0, 400) };
+        const guessed = guessNoteId(flat);
+        if (!guessed) return { ok: false, error: "搜索没返回可识别的笔记 id（这条可能是老数据，重新导入一次导出包就能对上）", raw: flat.slice(0, 400) };
+        id = guessed;
       }
       const res = await client.callTool(picked.update, client.buildArgs(picked.update, { text, id }));
       const out = toolOutcome(res);
