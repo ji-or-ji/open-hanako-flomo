@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "openhanako-flomo",
   "name": "OpenHanako-flomo",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "entry": "index.js",
   "icon": "assets/icon.png",
   "description": "浮墨笔记（flomo）：本地笔记摆在一张小卡里，按月份分段、可搜可筛；写一条走 Incoming Webhook，划词可引用到当前会话（只带编号与摘录）。",

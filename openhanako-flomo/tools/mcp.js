@@ -6,7 +6,7 @@
  * 设置里可以显式指定，猜不到就如实说“这个 MCP 没有对应工具”。
  */
 
-import { FlomoMcp, McpError, pickTools, toolText } from "../lib/mcp.mjs";
+import { FlomoMcp, McpError, pickTools, toolOutcome } from "../lib/mcp.mjs";
 import { textResult } from "../lib/store.js";
 
 async function readMcpConfig(sdk) {
@@ -86,34 +86,39 @@ export async function register(sdk) {
         lines.push(`  搜索 -> ${picked.search || "（没猜出来）"}`);
         lines.push(`  新建 -> ${picked.create || "（没猜出来）"}`);
         lines.push(`  修改 -> ${picked.update || "（没猜出来）"}`);
+        const withSchema = tools.filter((t) => t.inputSchema?.properties);
+        if (withSchema.length) {
+          lines.push("", "参数名（按各工具 schema 自动映射，不再是猜）：");
+          for (const t of withSchema) {
+            lines.push(`  ${t.name}: ${Object.keys(t.inputSchema.properties).join(", ")}`);
+          }
+        }
         return textResult(lines.join("\n"));
       }
 
-      const call = async (name, payload) => {
-        const res = await client.callTool(name, payload);
-        return toolText(res) || "（工具没有返回文本）";
+      const call = async (name, want) => {
+        const args = client.buildArgs(name, want);
+        const res = await client.callTool(name, args);
+        const out = toolOutcome(res);
+        return out.ok ? out.text || "（工具没有返回文本）" : `工具报错：${out.text}`;
       };
 
       try {
         if (action === "search") {
           if (!picked.search) return textResult("这个 MCP 里找不到搜索工具。先用 action=probe 看看有哪些。");
-          const q = String(args?.query || "").trim();
-          const payload = { query: q, keyword: q, q, limit: Number(args?.limit) || 20 };
-          return textResult(await call(picked.search, payload));
+          return textResult(await call(picked.search, { query: String(args?.query || "").trim(), limit: Number(args?.limit) || 20 }));
         }
         if (action === "create") {
           if (!picked.create) return textResult("这个 MCP 里找不到新建工具。先用 action=probe 看看有哪些。");
           const text = String(args?.text || "").trim();
           if (!text) return textResult("没给正文。");
-          const payload = { content: text, text, markdown: text };
-          return textResult(await call(picked.create, payload));
+          return textResult(await call(picked.create, { text }));
         }
         if (action === "update") {
           if (!picked.update) return textResult("这个 MCP 里找不到修改工具。先用 action=probe 看看有哪些。");
           const text = String(args?.text || "").trim();
           if (!text) return textResult("没给新正文。");
-          const payload = { id: String(args?.id || ""), content: text, text, markdown: text };
-          return textResult(await call(picked.update, payload));
+          return textResult(await call(picked.update, { text, id: String(args?.id || "") }));
         }
         return textResult("action 只能是 probe / search / create / update。");
       } catch (err) {

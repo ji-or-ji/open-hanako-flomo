@@ -112,6 +112,12 @@
   }
   .memo .time { font-size: var(--fs-hint, 10.5px); opacity: .6; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
   .memo .time .no { color: var(--accent, var(--f-accent)); opacity: .95; margin-right: 5px; font-variant-numeric: tabular-nums; }
+  .memo .time .pend {
+    margin-left: 6px; padding: 0 4px; border-radius: 3px;
+    font-size: var(--fs-micro, 9.5px); letter-spacing: .02em;
+    color: var(--warning, #b5762a);
+    border: 1px solid color-mix(in srgb, var(--warning, #b5762a) 40%, transparent);
+  }
   .memo .text {
     line-height: 1.62; white-space: pre-wrap; word-break: break-word;
     display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
@@ -459,6 +465,13 @@
     no.className = "no";
     no.textContent = m.no ? `#${m.no}` : "#?";
     time.append(no, document.createTextNode(String(m.time || "").slice(5)));
+    if (m.pending) {
+      const pend = document.createElement("span");
+      pend.className = "pend";
+      pend.textContent = "未同步";
+      pend.title = "只在本地改过，flomo 线上还是旧的";
+      time.append(pend);
+    }
 
     const text = document.createElement("div");
     text.className = "text";
@@ -503,12 +516,12 @@
 
     acts.append(quote, copy);
 
-    // 配了 MCP 才能改线上笔记
-    if (mcp.configured) {
+    // 编辑总是有：没 MCP 就改本地并标「未同步」
+    {
       const edit = document.createElement("button");
       edit.type = "button";
       edit.textContent = "改";
-      edit.title = "直接改 flomo 线上那条（MCP）";
+      edit.title = mcp.configured ? "直接改 flomo 线上那条（MCP）" : "只改本地副本，没配 MCP 推不回 flomo";
       edit.addEventListener("click", (e) => {
         e.stopPropagation();
         openEditor(box, m);
@@ -572,28 +585,44 @@
       }
       save.disabled = true;
       cancel.disabled = true;
-      say("正在改线上…");
+      say(mcp.configured ? "正在改线上…" : "正在改本地…");
       try {
+        // 先落本地：没 MCP 的时候这就是全部，有 MCP 时它先当草稿
+        const p = await api("/__memo/patch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: m.id, text: next, pending: mcp.configured }),
+        });
+        if (!p.ok) {
+          say(p.error || "本地没存上", "bad");
+          save.disabled = false;
+          cancel.disabled = false;
+          return;
+        }
+        close();
+        await load();
+
+        if (!mcp.configured) {
+          say("已改本地（未同步；配了 MCP Token 才能推回 flomo）", "ok");
+          return;
+        }
+
         const r = await api("/__mcp/op", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ op: "update", payload: { text: next, hint: original.slice(0, 24) } }),
         });
-        if (!r.ok) {
-          say(`改不了：${r.error || "未知原因"}`, "bad");
-          save.disabled = false;
-          cancel.disabled = false;
-          return;
+        if (r.ok) {
+          await api("/__memo/patch", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id: m.id, text: next, pending: false }),
+          });
+          say("已改线上", "ok");
+          await load();
+        } else {
+          say(`本地已改，线上没改：${r.error || "未知原因"}`, "bad");
         }
-        const p = await api("/__memo/patch", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: m.id, text: next }),
-        });
-        if (!p.ok) say("线上改了，本地没跟上", "bad");
-        else say("已保存", "ok");
-        close();
-        await load();
       } catch (err) {
         say(`改不了：${err?.message || err}`, "bad");
         save.disabled = false;

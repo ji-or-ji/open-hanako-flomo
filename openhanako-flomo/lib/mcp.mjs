@@ -22,7 +22,7 @@ export class McpError extends Error {
   }
 }
 
-/** 把 SSE 文本里 first-match 的那条 JSON-RPC 响应挑出来。 */
+/** 把 SSE 文本里第一条匹配 id 的 JSON-RPC 响应挑出来。 */
 function pickFromSse(text, id) {
   for (const line of String(text).split(/\r?\n/)) {
     if (!line.startsWith("data:")) continue;
@@ -110,19 +110,32 @@ export class FlomoMcp {
   }
 
   async initialize() {
-    const result = await this.#rpc("initialize", {
-      protocolVersion: PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: { name: "hana-flomo", version: "1.0.0" },
-    });
-    this.serverInfo = result?.serverInfo || null;
-    if (result?.protocolVersion) this.protocolVersion = result.protocolVersion;
-    try {
-      await this.#rpc("notifications/initialized", undefined, { notification: true });
-    } catch {
-      /* 某些实现不收这条，忽略 */
+    // 协议版本从新到旧试：新版握手失败就退一档，宿主/MCP 实现参差不齐。
+    const versions = [PROTOCOL_VERSION, "2025-03-26", "2024-11-05"];
+    let lastErr = null;
+    for (const v of versions) {
+      try {
+        this.protocolVersion = v;
+        const result = await this.#rpc("initialize", {
+          protocolVersion: v,
+          capabilities: {},
+          clientInfo: { name: "hana-flomo", version: "1.0.0" },
+        });
+        this.serverInfo = result?.serverInfo || null;
+        if (result?.protocolVersion) this.protocolVersion = result.protocolVersion;
+        try {
+          await this.#rpc("notifications/initialized", undefined, { notification: true });
+        } catch {
+          /* 某些实现不收这条，忽略 */
+        }
+        return result;
+      } catch (err) {
+        lastErr = err;
+        // 鉴权错就别退版本了，换版本也没用
+        if (err instanceof McpError && (err.status === 401 || err.status === 403)) throw err;
+      }
     }
-    return result;
+    throw lastErr || new McpError("MCP 握手失败");
   }
 
   async listTools() {
@@ -134,6 +147,62 @@ export class FlomoMcp {
   async callTool(name, args) {
     const result = await this.#rpc("tools/call", { name, arguments: args || {} });
     return result;
+  }
+
+  /**
+   * 拿工具的输入 schema 拼参数。
+   *
+   * 不猜参数名、不写死：不同实现会把正文叫 content / text / body / markdown，把 id 叫
+   * memo_id / noteId。有 inputSchema 就按 schema 里的属性名映射，只填它真有的字段。
+   * 没有 schema 时才退回“多别名一起发，服务端自己挑”的笨办法。
+   */
+  buildArgs(toolName, want = {}) {
+    const tool = this.tools.find((t) => t.name === toolName);
+    const props = tool?.inputSchema?.properties;
+    const names = props && typeof props === "object" ? Object.keys(props) : [];
+
+    const pickName = (exact, loose) => names.find((n) => exact.test(n)) || names.find((n) => loose.test(n)) || "";
+
+    if (names.length) {
+      const args = {};
+      const textKey = pickName(/^(content|text|body|markdown|memo|note)$/i, /content|text|body|markdown|memo/i);
+      const idKey = pickName(/^(id|memo_?id|note_?id|memoId|noteId)$/i, /(^|_)id$|id$/i);
+      const queryKey = pickName(/^(query|keyword|q|search|term)$/i, /query|keyword|search|term/i);
+      const limitKey = pickName(/^(limit|count|size|top_?k)$/i, /limit|count|size/i);
+      if (textKey && typeof want.text === "string") args[textKey] = want.text;
+      if (idKey && want.id) args[idKey] = want.id;
+      if (queryKey && typeof want.query === "string") args[queryKey] = want.query;
+      if (limitKey && want.limit) args[limitKey] = String(want.limit);
+      // schema 里只写了别的必填字段，就看着办：能按类型给就给
+      const required = Array.isArray(tool?.inputSchema?.required) ? tool.inputSchema.required : [];
+      for (const key of required) {
+        if (key in args) continue;
+        const type = props?.[key]?.type;
+        if (type === "string") args[key] = typeof want.text === "string" ? want.text : String(want.query || "");
+        else if (type === "number" || type === "integer") args[key] = Number(want.limit) || 20;
+        else if (type === "boolean") args[key] = true;
+      }
+      if (Object.keys(args).length) return args;
+    }
+
+    // 没 schema：把常见叫法一起发
+    const args = {};
+    if (typeof want.text === "string") {
+      args.content = want.text;
+      args.text = want.text;
+      args.markdown = want.text;
+    }
+    if (want.id) {
+      args.id = want.id;
+      args.memo_id = want.id;
+    }
+    if (typeof want.query === "string") {
+      args.query = want.query;
+      args.keyword = want.query;
+      args.q = want.query;
+    }
+    if (want.limit) args.limit = Number(want.limit) || 20;
+    return args;
   }
 
   /** 连一次、把工具名拿回来；已经连过就直接返回缓存的。 */
@@ -180,4 +249,12 @@ export function toolText(result) {
   }
   if (!parts.length && result?.structuredContent) parts.push(JSON.stringify(result.structuredContent, null, 2));
   return parts.join("\n").trim();
+}
+
+/** 统一判成败：有的实现用 isError，有的直接在文本里写 error。 */
+export function toolOutcome(result) {
+  const text = toolText(result);
+  const isError = result?.isError === true;
+  if (!isError) return { ok: true, text };
+  return { ok: false, text: text || "工具报了错但没给原因" };
 }

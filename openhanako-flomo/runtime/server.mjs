@@ -387,9 +387,9 @@ const server = createServer(async (req, res) => {
         send(res, 404, { ok: false, error: "本地没有这条" });
         return;
       }
-      memos[idx] = { ...memos[idx], content: text };
+      memos[idx] = { ...memos[idx], content: text, pending: Boolean(body.pending) };
       writeMemos(memos);
-      send(res, 200, { ok: true });
+      send(res, 200, { ok: true, pending: Boolean(body.pending) });
       return;
     }
 

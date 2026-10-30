@@ -16,6 +16,7 @@ import { register as registerSetConfig } from "./tools/set-config.js";
 import { register as registerImportMemos } from "./tools/import-memos.js";
 import { register as registerMcp } from "./tools/mcp.js";
 import { describeError, connect } from "./tools/mcp.js";
+import { toolOutcome } from "./lib/mcp.mjs";
 import { resolveWebhook, writeWebhookFile } from "./lib/config.js";
 import { readMemos } from "./lib/store.js";
 
@@ -132,14 +133,17 @@ function startMcpDrain(sdk) {
       if (!picked.create) return { ok: false, error: "MCP 里没有新建工具" };
       const text = String(payload?.text || "").trim();
       if (!text) return { ok: false, error: "正文为空" };
-      const res = await client.callTool(picked.create, { content: text, text, markdown: text });
-      return { ok: true, tool: picked.create, raw: res };
+      const res = await client.callTool(picked.create, client.buildArgs(picked.create, { text }));
+      const out = toolOutcome(res);
+      return out.ok ? { ok: true, tool: picked.create, raw: out.text } : { ok: false, error: out.text };
     }
     if (op === "search") {
       if (!picked.search) return { ok: false, error: "MCP 里没有搜索工具" };
-      const q = String(payload?.query || "").trim();
-      const res = await client.callTool(picked.search, { query: q, keyword: q, q, limit: Number(payload?.limit) || 20 });
-      return { ok: true, tool: picked.search, raw: res };
+      const query = String(payload?.query || "").trim();
+      const args = client.buildArgs(picked.search, { query, limit: Number(payload?.limit) || 20 });
+      const res = await client.callTool(picked.search, args);
+      const out = toolOutcome(res);
+      return out.ok ? { ok: true, tool: picked.search, raw: out.text } : { ok: false, error: out.text };
     }
     if (op === "update") {
       if (!picked.update) return { ok: false, error: "MCP 里没有修改工具" };
@@ -151,13 +155,15 @@ function startMcpDrain(sdk) {
         // 只能用原文前缀搜一次，再从返回里猜它的线上 id。
         const hint = String(payload?.hint || text).slice(0, 24);
         if (!picked.search) return { ok: false, error: "没有线上 id，MCP 里又没有搜索工具，改不了" };
-        const found = await client.callTool(picked.search, { query: hint, keyword: hint, q: hint, limit: 5 });
-        const flat = JSON.stringify(found);
+        const found = await client.callTool(picked.search, client.buildArgs(picked.search, { query: hint, limit: 5 }));
+        const out = toolOutcome(found);
+        const flat = out.ok ? out.text : JSON.stringify(found);
         id = guessNoteId(flat);
-        if (!id) return { ok: false, error: "搜索没返回可识别的笔记 id", raw: found };
+        if (!id) return { ok: false, error: "搜索没返回可识别的笔记 id", raw: flat.slice(0, 400) };
       }
-      const res = await client.callTool(picked.update, { id, content: text, text, markdown: text });
-      return { ok: true, tool: picked.update, id, raw: res };
+      const res = await client.callTool(picked.update, client.buildArgs(picked.update, { text, id }));
+      const out = toolOutcome(res);
+      return out.ok ? { ok: true, tool: picked.update, id, raw: out.text } : { ok: false, error: out.text };
     }
     return { ok: false, error: `不认识的 op：${op}` };
   };
