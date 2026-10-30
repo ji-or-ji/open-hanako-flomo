@@ -5,176 +5,204 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>flomo</title>
 <style>
+  /* 宿主主题 token 优先；取不到时用下面这套自带的深/浅兜底，两套都不会瞎。 */
   :root {
     --f-text: #cfd8e3;
-    --f-surface: rgba(255, 255, 255, .028);
-    --f-surface-hi: rgba(255, 255, 255, .055);
-    --f-field: rgba(255, 255, 255, .04);
-    --f-line: rgba(255, 255, 255, .07);
-    --f-line-strong: rgba(255, 255, 255, .13);
+    --f-surface: rgba(255, 255, 255, .04);
+    --f-surface-hi: rgba(255, 255, 255, .075);
+    --f-line: rgba(255, 255, 255, .12);
     --f-accent: #7FD6C0;
     --f-accent-ink: #0f1419;
-    --f-pill: rgba(20, 26, 33, .94);
-    --f-group: linear-gradient(rgba(15, 20, 25, .92), rgba(15, 20, 25, .72));
-    --f-overlay: rgba(15, 20, 25, .84);
+    --f-bg: #161a1f;
+    --f-overlay: rgba(15, 20, 25, .86);
     --f-shadow: rgba(0, 0, 0, .4);
-    --f-selbar-bg: rgba(58, 69, 82, .97);
-    --f-selbar-text: #d6dee8;
-    --f-selbar-hover: rgba(255, 255, 255, .1);
-    color-scheme: dark;
   }
   html[data-theme="light"] {
     --f-text: #2c3540;
-    --f-surface: rgba(16, 24, 32, .035);
-    --f-surface-hi: rgba(16, 24, 32, .07);
-    --f-field: rgba(16, 24, 32, .04);
-    --f-line: rgba(16, 24, 32, .1);
-    --f-line-strong: rgba(16, 24, 32, .18);
+    --f-surface: rgba(16, 24, 32, .04);
+    --f-surface-hi: rgba(16, 24, 32, .075);
+    --f-line: rgba(16, 24, 32, .13);
     --f-accent: #1f8a74;
     --f-accent-ink: #ffffff;
-    --f-pill: rgba(255, 255, 255, .96);
-    --f-group: linear-gradient(rgba(250, 250, 248, .94), rgba(250, 250, 248, .7));
+    --f-bg: #faf8f5;
     --f-overlay: rgba(250, 250, 248, .92);
     --f-shadow: rgba(30, 40, 50, .18);
-    --f-selbar-bg: rgba(253, 253, 251, .99);
-    --f-selbar-text: #2c3540;
-    --f-selbar-hover: rgba(16, 24, 32, .07);
-    color-scheme: light;
   }
 
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   * { box-sizing: border-box; }
   body {
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: var(--text, var(--f-text)); font-size: 13px;
+    font-family: var(--font-ui, system-ui, -apple-system, "Segoe UI", sans-serif);
+    color: var(--text, var(--f-text));
+    font-size: var(--fs-caption, 12.5px);
     -webkit-font-smoothing: antialiased;
     display: flex; flex-direction: column;
   }
 
   /* structural 形态：宿主给标题区，自己不再画标题栏 */
   .bar { display: none; }
-  .count { font-size: 10.5px; opacity: .55; font-variant-numeric: tabular-nums; }
+  .count { font-size: var(--fs-hint, 11px); opacity: .55; font-variant-numeric: tabular-nums; }
   .icon {
     width: 22px; height: 22px; flex: none;
     display: grid; place-items: center;
-    border: 1px solid var(--f-line); border-radius: 7px;
-    background: var(--f-field); color: inherit;
-    font: inherit; font-size: 11px; cursor: pointer;
-    transition: background .16s ease, border-color .16s ease;
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    border-radius: var(--radius-sm, 6px);
+    background: var(--overlay-subtle, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-hint, 11px);
+    cursor: pointer; transition: background var(--duration-fast, .15s) ease, border-color var(--duration-fast, .15s) ease;
   }
-  .icon:hover { background: var(--f-surface-hi); border-color: var(--f-line-strong); }
+  .icon:hover {
+    background: var(--overlay-light, var(--f-surface-hi));
+    border-color: var(--overlay-strong, var(--f-line));
+  }
   .icon:disabled { opacity: .4; cursor: default; }
 
   /* ---- 搜索（左边三个小图标，右边搜索框） ---- */
   .tools { padding: 0 12px 6px; display: flex; align-items: center; gap: 5px; flex: none; }
   input[type="search"] {
     flex: 1; min-width: 0; height: 26px; padding: 0 9px;
-    border: 1px solid var(--f-line); border-radius: 8px;
-    background: var(--f-field); color: inherit; font: inherit; font-size: 12px;
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    border-radius: var(--radius-input, 8px);
+    background: var(--overlay-subtle, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-caption, 12px);
     outline: none;
   }
-  input[type="search"]:focus { border-color: var(--f-accent); }
-  input[type="search"]::placeholder { color: inherit; opacity: .4; }
+  input[type="search"]:focus { border-color: var(--accent, var(--f-accent)); }
+  input[type="search"]::placeholder { color: var(--text-muted, inherit); opacity: .6; }
+
   .chips { display: flex; gap: 5px; overflow-x: auto; padding: 0 12px 6px; scrollbar-width: none; flex: none; align-items: center; }
   .chips .count { margin-left: auto; padding-left: 6px; flex: none; }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
-    flex: none; height: 22px; padding: 0 9px; border-radius: 7px;
-    border: 1px solid var(--f-line); background: var(--f-surface);
-    color: inherit; font: inherit; font-size: 11px; opacity: .78; cursor: pointer;
-    white-space: nowrap;
+    flex: none; height: 22px; padding: 0 9px; border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    background: var(--overlay-subtle, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-hint, 11px); opacity: .8;
+    cursor: pointer; white-space: nowrap;
   }
-  .chip.on { background: color-mix(in srgb, var(--f-accent) 16%, transparent); border-color: color-mix(in srgb, var(--f-accent) 45%, transparent); opacity: 1; }
+  .chip.on {
+    background: var(--accent-light, color-mix(in srgb, var(--f-accent) 16%, transparent));
+    border-color: color-mix(in srgb, var(--accent, var(--f-accent)) 45%, transparent);
+    opacity: 1;
+  }
 
   /* ---- 列表 ---- */
   .list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 10px 8px; }
   .list::-webkit-scrollbar { width: 8px; }
-  .list::-webkit-scrollbar-thumb { background: var(--f-line-strong); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+  .list::-webkit-scrollbar-thumb {
+    background: var(--overlay-medium, var(--f-line));
+    border-radius: 4px; border: 2px solid transparent; background-clip: content-box;
+  }
   .group {
-    font-size: 10.5px; letter-spacing: .06em; opacity: .6; padding: 10px 2px 5px;
-    position: sticky; top: 0; background: var(--f-group); backdrop-filter: blur(4px);
+    font-size: var(--fs-hint, 10.5px); letter-spacing: .06em; opacity: .62;
+    padding: 10px 2px 5px; position: sticky; top: 0;
+    background: color-mix(in srgb, var(--bg, var(--f-bg)) 90%, transparent);
+    backdrop-filter: blur(6px);
   }
   .memo {
     position: relative; padding: 9px 10px; margin-bottom: 6px;
-    border: 1px solid var(--f-line); border-radius: 10px;
-    background: var(--f-surface);
-    transition: border-color .16s ease, background .16s ease;
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    border-radius: var(--radius-md, 8px);
+    background: var(--overlay-subtle, var(--f-surface));
+    transition: border-color var(--duration-fast, .15s) ease, background var(--duration-fast, .15s) ease;
   }
-  .memo:hover { background: var(--f-surface-hi); border-color: var(--f-line-strong); }
-  .memo .time { font-size: 10.5px; opacity: .55; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
-  .memo .time .no { color: var(--f-accent); opacity: .9; margin-right: 5px; font-variant-numeric: tabular-nums; }
-  .memo .text { line-height: 1.6; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .memo:hover {
+    background: var(--overlay-light, var(--f-surface-hi));
+    border-color: var(--overlay-strong, var(--f-line));
+  }
+  .memo .time { font-size: var(--fs-hint, 10.5px); opacity: .6; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .memo .time .no { color: var(--accent, var(--f-accent)); opacity: .95; margin-right: 5px; font-variant-numeric: tabular-nums; }
+  .memo .text {
+    line-height: 1.62; white-space: pre-wrap; word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    font-size: var(--fs-body, 13px);
+  }
   .memo.open .text { -webkit-line-clamp: unset; }
   .memo .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-  .memo .tag { font-size: 10.5px; color: var(--f-accent); opacity: .9; }
-  .acts { position: absolute; right: 6px; top: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity .14s ease; }
+  .memo .tag { font-size: var(--fs-hint, 10.5px); color: var(--accent, var(--f-accent)); opacity: .9; }
+  .acts { position: absolute; right: 6px; top: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity var(--duration-fast, .15s) ease; }
   .memo:hover .acts, .memo:focus-within .acts { opacity: 1; }
   .acts button {
-    height: 21px; padding: 0 7px; border-radius: 7px; border: 1px solid var(--f-line-strong);
-    background: var(--f-pill); color: inherit; font: inherit; font-size: 10.5px; cursor: pointer;
+    height: 21px; padding: 0 7px; border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    background: var(--bg-card, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-hint, 10.5px); cursor: pointer;
   }
-  .acts button:hover { background: color-mix(in srgb, var(--f-accent) 22%, transparent); }
+  .acts button:hover { background: var(--accent-light, var(--f-surface-hi)); }
 
-  .empty { padding: 28px 18px; text-align: center; opacity: .6; line-height: 1.9; font-size: 12px; }
+  .empty { padding: 28px 18px; text-align: center; opacity: .6; line-height: 1.9; font-size: var(--fs-caption, 12px); }
 
   /* ---- 底部写一条 ---- */
-  .composer { flex: none; border-top: 1px solid var(--f-line); padding: 8px 10px 9px; display: flex; gap: 7px; align-items: flex-end; }
+  .composer {
+    flex: none; border-top: 1px solid var(--input-card-border-color, var(--f-line));
+    padding: 8px 10px 9px; display: flex; gap: 7px; align-items: flex-end;
+  }
   textarea {
     flex: 1; min-height: 32px; max-height: 108px; resize: none;
-    padding: 7px 10px; border: 1px solid var(--f-line); border-radius: 9px;
-    background: var(--f-field); color: inherit; font: inherit; font-size: 12px;
+    padding: 7px 10px;
+    border: 1px solid var(--input-card-border-color, var(--f-line));
+    border-radius: var(--radius-input, 8px);
+    background: var(--overlay-subtle, var(--f-surface));
+    color: inherit; font: inherit; font-size: var(--fs-caption, 12px);
     line-height: 1.5; outline: none;
   }
-  textarea:focus { border-color: var(--f-accent); }
-  textarea::placeholder { color: inherit; opacity: .4; }
+  textarea:focus { border-color: var(--accent, var(--f-accent)); }
+  textarea::placeholder { color: var(--text-muted, inherit); opacity: .6; }
   .send {
-    height: 32px; padding: 0 13px; border-radius: 9px; border: 0;
-    background: var(--f-accent); color: var(--f-accent-ink); font: inherit; font-size: 12px; font-weight: 600;
-    cursor: pointer; transition: opacity .16s ease;
+    height: 32px; padding: 0 13px; border-radius: var(--radius-md, 8px); border: 0;
+    background: var(--accent, var(--f-accent));
+    color: var(--on-accent, var(--f-accent-ink));
+    font: inherit; font-size: var(--fs-caption, 12px); font-weight: 600;
+    cursor: pointer; transition: opacity var(--duration-fast, .15s) ease;
   }
+  .send:hover { opacity: .88; }
   .send:disabled { opacity: .45; cursor: default; }
 
   /* ---- 提示条 ---- */
   #note {
     position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
-    max-width: 92%; padding: 6px 12px; border-radius: 9px;
-    background: var(--f-pill); border: 1px solid var(--f-line-strong);
-    font-size: 11.5px; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    max-width: 92%; padding: 6px 12px; border-radius: var(--radius-md, 8px);
+    background: var(--bg-card, var(--f-surface));
+    border: 1px solid var(--border, var(--f-line));
+    box-shadow: var(--shadow-md, 0 4px 12px var(--f-shadow));
+    font-size: var(--fs-hint, 11.5px);
+    opacity: 0; pointer-events: none; transition: opacity var(--duration-fast, .15s) ease;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    box-shadow: 0 4px 16px var(--f-shadow);
   }
   #note.show { opacity: 1; }
-  #note.ok { color: #2f9e6f; }
-  #note.bad { color: #c9523f; }
-  html:not([data-theme="light"]) #note.ok { color: #7FD6A8; }
-  html:not([data-theme="light"]) #note.bad { color: #E06C5A; }
+  #note.ok { color: var(--green, #4e9e73); }
+  #note.bad { color: var(--danger, #c9523f); }
 
   #drop {
     position: fixed; inset: 0; z-index: 20; display: none; place-content: center;
-    background: var(--f-overlay); color: var(--text, var(--f-text)); font-size: 14px;
-    border: 2px dashed color-mix(in srgb, var(--f-accent) 55%, transparent); border-radius: 14px;
+    background: var(--drop-overlay-bg, var(--f-overlay));
+    color: var(--text, var(--f-text)); font-size: var(--fs-body, 14px);
+    border: 2px dashed color-mix(in srgb, var(--accent, var(--f-accent)) 55%, transparent);
+    border-radius: var(--radius-lg, 14px);
   }
   #drop.show { display: grid; }
 
-  /* 划词工具条：跟随主题（深色深胶囊 / 浅色白胶囊），对齐 HanaAgent 原生 */
+  /* 划词工具条：跟宿主同一套底色与阴影，深色深、浅色白 */
   #selBar {
     position: fixed; z-index: 30; display: none; align-items: center; gap: 2px;
-    padding: 4px; border-radius: 10px;
-    background: var(--f-selbar-bg);
-    color: var(--f-selbar-text);
-    box-shadow: 0 6px 20px var(--f-shadow);
+    padding: 4px;
+    border-radius: var(--radius-md, 10px);
+    background: var(--bg-glass, var(--bg-card, var(--f-surface)));
+    color: var(--text, var(--f-text));
+    box-shadow: var(--shadow-lg, 0 4px 12px var(--f-shadow));
     backdrop-filter: blur(10px);
   }
   #selBar.show { display: flex; }
   #selBar button {
     display: flex; align-items: center; gap: 6px;
-    height: 26px; padding: 0 10px; border: 0; border-radius: 7px;
+    height: 26px; padding: 0 10px; border: 0;
+    border-radius: var(--radius-sm, 6px);
     background: transparent; color: inherit;
-    font: inherit; font-size: 12px; cursor: pointer;
-    transition: background .14s ease;
+    font: inherit; font-size: var(--fs-caption, 12px); cursor: pointer;
+    transition: background var(--duration-instant, .1s) ease;
     white-space: nowrap;
   }
-  #selBar button:hover { background: var(--f-selbar-hover); }
+  #selBar button:hover { background: var(--overlay-medium, var(--f-surface-hi)); }
   #selBar svg { width: 13px; height: 13px; opacity: .8; flex: none; }
 </style>
 </head>
