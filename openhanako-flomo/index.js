@@ -65,13 +65,32 @@ function startQuoteDrain(sdk) {
           continue;
         }
         try {
-          const target = {};
-          if (item.sessionPath) target.sessionPath = item.sessionPath;
-          if (item.sessionId) target.sessionId = item.sessionId;
-          await sdk.sessions.send({ ...target, text: item.text });
+          // 关键：v2 App 默认只能写自己的分区，投到用户的会话必须显式 scope:"all"
+          // （需要 app/sessions.manage）；会话正在跑的时候用 followUp 排队。
+          const payload = { text: item.text, scope: "all", deliverAs: "followUp" };
+          if (item.sessionId) payload.sessionId = item.sessionId;
+          if (item.sessionPath) payload.sessionPath = item.sessionPath;
+          await sdk.sessions.send(payload);
           await sdk.logger.info(`引用已投递：${String(item.text).slice(0, 24)}…`);
         } catch (err) {
-          await sdk.logger.warn(`引用投递失败：${err?.message || err}`);
+          const msg = String(err?.message || err);
+          // 会话正忙：等一会儿再试一次
+          if (/session_busy/.test(msg)) {
+            await new Promise((r) => setTimeout(r, 1500));
+            try {
+              const retry = { text: item.text, scope: "all", deliverAs: "followUp" };
+              if (item.sessionPath) retry.sessionPath = item.sessionPath;
+              if (item.sessionId) retry.sessionId = item.sessionId;
+              await sdk.sessions.send(retry);
+              await sdk.logger.info(`引用已投递（重试）：${String(item.text).slice(0, 24)}…`);
+              rmSync(path, { force: true });
+              continue;
+            } catch (err2) {
+              await sdk.logger.warn(`引用投递失败：${String(err2?.message || err2)}`);
+            }
+          } else {
+            await sdk.logger.warn(`引用投递失败：${msg}`);
+          }
         }
         rmSync(path, { force: true });
       }
