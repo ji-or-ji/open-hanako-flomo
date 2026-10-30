@@ -18,6 +18,9 @@
     --f-group: linear-gradient(rgba(15, 20, 25, .92), rgba(15, 20, 25, .72));
     --f-overlay: rgba(15, 20, 25, .84);
     --f-shadow: rgba(0, 0, 0, .4);
+    --f-selbar-bg: rgba(58, 69, 82, .97);
+    --f-selbar-text: #d6dee8;
+    --f-selbar-hover: rgba(255, 255, 255, .1);
     color-scheme: dark;
   }
   html[data-theme="light"] {
@@ -33,6 +36,9 @@
     --f-group: linear-gradient(rgba(250, 250, 248, .94), rgba(250, 250, 248, .7));
     --f-overlay: rgba(250, 250, 248, .92);
     --f-shadow: rgba(30, 40, 50, .18);
+    --f-selbar-bg: rgba(253, 253, 251, .99);
+    --f-selbar-text: #2c3540;
+    --f-selbar-hover: rgba(16, 24, 32, .07);
     color-scheme: light;
   }
 
@@ -150,24 +156,25 @@
   }
   #drop.show { display: grid; }
 
-  /* 划词工具条：对齐 HanaAgent 原生那一条（深色胶囊，两套主题都一样） */
+  /* 划词工具条：跟随主题（深色深胶囊 / 浅色白胶囊），对齐 HanaAgent 原生 */
   #selBar {
     position: fixed; z-index: 30; display: none; align-items: center; gap: 2px;
     padding: 4px; border-radius: 10px;
-    background: rgba(58, 69, 82, .97);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, .42);
-    backdrop-filter: blur(8px);
+    background: var(--f-selbar-bg);
+    color: var(--f-selbar-text);
+    box-shadow: 0 6px 20px var(--f-shadow);
+    backdrop-filter: blur(10px);
   }
   #selBar.show { display: flex; }
   #selBar button {
     display: flex; align-items: center; gap: 6px;
     height: 26px; padding: 0 10px; border: 0; border-radius: 7px;
-    background: transparent; color: #d6dee8;
+    background: transparent; color: inherit;
     font: inherit; font-size: 12px; cursor: pointer;
     transition: background .14s ease;
     white-space: nowrap;
   }
-  #selBar button:hover { background: rgba(255, 255, 255, .1); }
+  #selBar button:hover { background: var(--f-selbar-hover); }
   #selBar svg { width: 13px; height: 13px; opacity: .8; flex: none; }
 </style>
 </head>
