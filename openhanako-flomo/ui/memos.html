@@ -206,6 +206,43 @@
     return res.json();
   }
 
+  /**
+   * 复制：先试浏览器剪贴板，再试 execCommand，最后交给运行时写系统剪贴板。
+   * 卡片嵌在宿主的沙箱 iframe 里，没有 clipboard-write 权限，前两条都可能失败。
+   */
+  async function copyText(text) {
+    const body = String(text || "");
+    if (!body) return false;
+    try {
+      await navigator.clipboard.writeText(body);
+      return true;
+    } catch {
+      /* 继续 */
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = body;
+      ta.style.cssText = "position:fixed;top:-9999px;opacity:0";
+      document.body.append(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      if (ok) return true;
+    } catch {
+      /* 继续 */
+    }
+    try {
+      const r = await api("/__copy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: body }),
+      });
+      return Boolean(r.ok);
+    } catch {
+      return false;
+    }
+  }
+
   const monthKey = (time) => String(time || "").slice(0, 7);
   function monthLabel(key) {
     if (!key) return "无日期";
@@ -321,12 +358,8 @@
     copy.title = "只复制到剪贴板，不打扰会话";
     copy.addEventListener("click", async (e) => {
       e.stopPropagation();
-      try {
-        await navigator.clipboard.writeText(m.content || "");
-        say("已复制", "ok");
-      } catch {
-        say("复制失败", "bad");
-      }
+      const ok = await copyText(m.content || "");
+      say(ok ? "已复制" : "复制失败", ok ? "ok" : "bad");
     });
 
     acts.append(quote, copy);
@@ -403,12 +436,8 @@
     const no = Number(selBtn.dataset.no) || 0;
     const text = selBtn.dataset.text || "";
     if (btn.id === "selCopy") {
-      try {
-        await navigator.clipboard.writeText(text);
-        say("已复制选中段落", "ok");
-      } catch {
-        say("复制失败", "bad");
-      }
+      const ok = await copyText(text);
+      say(ok ? "已复制选中段落" : "复制失败", ok ? "ok" : "bad");
       hideSelBtn();
       window.getSelection()?.removeAllRanges();
       return;

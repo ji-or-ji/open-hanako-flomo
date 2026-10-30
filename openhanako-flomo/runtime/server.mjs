@@ -10,8 +10,7 @@
  * 端口固定 47811：卡片里的按钮直接打到 127.0.0.1:47811，端口一变就失联。
  */
 import { createServer } from "node:http";
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyUpdate, checkUpdate, dirSize } from "../lib/updater.mjs";
@@ -343,6 +342,31 @@ const server = createServer(async (req, res) => {
         return;
       }
       send(res, 200, { ...importFile(path), file: path });
+      return;
+    }
+
+    // ---- 写系统剪贴板（沙箱里的页面没 clipboard 权限，只能从外面写） ----
+    if (url.pathname === "/__copy" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const text = String(body.text || "");
+      if (!text) {
+        send(res, 400, { ok: false, error: "没有内容" });
+        return;
+      }
+      const tmp = join(DATA_DIR, `clip-${Date.now()}.txt`);
+      writeFileSync(tmp, text, "utf8");
+      const code = await new Promise((resolve) => {
+        const ps = spawn(
+          "powershell.exe",
+          ["-NoProfile", "-NonInteractive", "-Command", `Get-Content -LiteralPath '${tmp}' -Raw -Encoding UTF8 | Set-Clipboard`],
+          { windowsHide: true, stdio: "ignore" },
+        );
+        ps.on("error", () => resolve(-1));
+        ps.on("exit", (c) => resolve(c ?? -1));
+      });
+      rmSync(tmp, { force: true });
+      if (code === 0) send(res, 200, { ok: true, chars: text.length });
+      else send(res, 500, { ok: false, error: `剪贴板写入失败（exit ${code}）` });
       return;
     }
 
