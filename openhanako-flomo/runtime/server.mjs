@@ -373,6 +373,26 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === "/__memo/append" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      const text = String(body.text || "").trim();
+      if (!text) {
+        send(res, 400, { ok: false, error: "内容为空" });
+        return;
+      }
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const time = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      const tags = [...new Set([...text.matchAll(/#([^\s#]+)/g)].map((m) => m[1]))];
+      const memo = { id: `local-${now.getTime()}`, time, content: text, tags, images: [], origin: "local" };
+      const memos = readMemos();
+      memos.push(memo);
+      memos.sort((a, b) => String(b.time).localeCompare(String(a.time)));
+      writeMemos(memos);
+      send(res, 200, { ok: true, memo, total: memos.length });
+      return;
+    }
+
     if (url.pathname === "/__memo/patch" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)).toString("utf8") || "{}");
       const id = String(body.id || "");

@@ -768,31 +768,42 @@
     if (!text) return;
     sendBtn.disabled = true;
     try {
+      let ok = false;
+      let err = "";
       if (mcp.configured) {
         const r = await api("/__mcp/op", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ op: "create", payload: { text } }),
         });
-        if (r.ok) {
-          draftEl.value = "";
-          autosize();
-          say("已写入 flomo（本地等下次同步）", "ok");
-        } else say(r.error || "发送失败", "bad");
+        ok = Boolean(r.ok);
+        err = r.error || "发送失败";
       } else {
         const r = await api("/__memo/new", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ text }),
         });
-        if (r.ok) {
-          draftEl.value = "";
-          autosize();
-          say("已发送到 flomo", "ok");
-        } else say(r.error || "发送失败", "bad");
+        ok = Boolean(r.ok);
+        err = r.error || "发送失败";
       }
+      if (!ok) {
+        saySticky(`发送失败：${err}`, "bad");
+        return;
+      }
+      // 真写出去了，就把它摆回列表里，不然发完就没了
+      await api("/__memo/append", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      draftEl.value = "";
+      autosize();
+      await load();
+      say("已发送，并加进本地列表", "ok");
+      listEl.scrollTop = 0;
     } catch (err) {
-      say(`发送失败：${err?.message || err}`, "bad");
+      saySticky(`发送失败：${err?.message || err}`, "bad");
     } finally {
       sendBtn.disabled = false;
     }
